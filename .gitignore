@@ -8,8 +8,6 @@ build/
 coverage/
 
 linux/
-macos/
-web/
 windows/
 
 *.iml

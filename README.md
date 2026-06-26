@@ -18,6 +18,13 @@ flutter pub get
 flutter run
 ```
 
+On a Mac without a connected phone, run the desktop or web target directly:
+
+```sh
+flutter run -d macos
+flutter run -d chrome
+```
+
 ## API Server
 
 The app defaults to `https://music-api.gdstudio.xyz/api.php`. Open **Settings** in the app to point it at your own Netease Cloud Music API-compatible server. The Flutter code normalizes trailing slashes, so both of these forms are accepted:
