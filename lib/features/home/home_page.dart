@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/home_snapshot.dart';
 import '../../core/models/playlist.dart';
-import '../../core/models/song.dart';
 import '../../core/services/music_api.dart';
 import '../../core/widgets/cover_art.dart';
 import '../../core/widgets/section_header.dart';

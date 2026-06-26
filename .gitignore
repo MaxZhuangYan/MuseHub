@@ -7,8 +7,6 @@
 build/
 coverage/
 
-android/
-ios/
 linux/
 macos/
 web/
