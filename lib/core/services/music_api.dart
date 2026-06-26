@@ -23,7 +23,7 @@ class MusicApi {
   })  : _client = client ?? http.Client(),
         _baseUrl = _normalizeBaseUrl(baseUrl);
 
-  static const defaultBaseUrl = 'https://music-api.gdstudio.xyz/api.php';
+  static const defaultBaseUrl = 'https://netease-cloud-music-api-five-roan-88.vercel.app';
 
   final http.Client _client;
   String _baseUrl;
@@ -143,10 +143,13 @@ class MusicApi {
   }
 
   Future<Map<String, dynamic>> _get(String path, {Map<String, String>? query}) async {
-    final uri = Uri.parse('$_baseUrl$path').replace(queryParameters: query);
+    final uri = Uri.parse('$_baseUrl$path').replace(queryParameters: {
+      ...?query,
+      'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
+    });
     final response = await _client.get(uri).timeout(const Duration(seconds: 15));
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw MusicApiException('Request failed: ${response.statusCode}');
+      throw MusicApiException('Music API request failed (${response.statusCode}): ${uri.host}${uri.path}');
     }
     final decoded = jsonDecode(response.body);
     if (decoded is! Map<String, dynamic>) {
@@ -158,6 +161,9 @@ class MusicApi {
   static String _normalizeBaseUrl(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return defaultBaseUrl;
-    return trimmed.endsWith('/') ? trimmed.substring(0, trimmed.length - 1) : trimmed;
+    final withoutTrailingSlash = trimmed.endsWith('/') ? trimmed.substring(0, trimmed.length - 1) : trimmed;
+    return withoutTrailingSlash.endsWith('/api.php')
+        ? withoutTrailingSlash.substring(0, withoutTrailingSlash.length - '/api.php'.length)
+        : withoutTrailingSlash;
   }
 }
