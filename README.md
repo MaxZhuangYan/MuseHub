@@ -27,11 +27,12 @@ flutter run -d chrome
 
 ## API Server
 
-The app defaults to `https://music-api.gdstudio.xyz/api.php`. Open **Settings** in the app to point it at your own Netease Cloud Music API-compatible server. The Flutter code normalizes trailing slashes, so both of these forms are accepted:
+The app defaults to `https://netease-cloud-music-api-five-roan-88.vercel.app`. Open **Settings** in the app to point it at your own Netease Cloud Music API-compatible server. The Flutter code normalizes trailing slashes and the old `/api.php` suffix, so these forms are accepted:
 
 ```txt
 https://your-host.example
 https://your-host.example/
+https://your-host.example/api.php
 ```
 
 ## Project Layout
