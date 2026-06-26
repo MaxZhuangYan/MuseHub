@@ -112,7 +112,8 @@ class MusicApi {
     final first = items.first;
     if (first is! Map<String, dynamic>) return null;
     final url = first['url']?.toString();
-    return url == null || url.isEmpty ? null : url;
+    if (url == null || url.isEmpty) return null;
+    return url.startsWith('http://') ? url.replaceFirst('http://', 'https://') : url;
   }
 
   Future<List<Song>> songDetails(List<int> ids) async {
