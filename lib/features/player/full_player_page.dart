@@ -133,11 +133,11 @@ class FullPlayerPage extends StatelessWidget {
     );
   }
 
-  static IconData _repeatIcon(RepeatMode mode) {
+  static IconData _repeatIcon(PlaybackRepeatMode mode) {
     return switch (mode) {
-      RepeatMode.off => Icons.repeat,
-      RepeatMode.one => Icons.repeat_one,
-      RepeatMode.all => Icons.repeat_on,
+      PlaybackRepeatMode.off => Icons.repeat,
+      PlaybackRepeatMode.one => Icons.repeat_one,
+      PlaybackRepeatMode.all => Icons.repeat_on,
     };
   }
 

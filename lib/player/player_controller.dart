@@ -7,7 +7,7 @@ import '../core/models/lyric_line.dart';
 import '../core/models/song.dart';
 import '../core/services/music_api.dart';
 
-enum RepeatMode { off, one, all }
+enum PlaybackRepeatMode { off, one, all }
 
 class PlayerController extends ChangeNotifier {
   PlayerController(this._api) {
@@ -42,7 +42,7 @@ class PlayerController extends ChangeNotifier {
   bool _isPlaying = false;
   bool _isLoading = false;
   String? _error;
-  RepeatMode _repeatMode = RepeatMode.all;
+  PlaybackRepeatMode _repeatMode = PlaybackRepeatMode.all;
 
   List<Song> get queue => List.unmodifiable(_queue);
   Song? get current => _current;
@@ -52,7 +52,7 @@ class PlayerController extends ChangeNotifier {
   bool get isPlaying => _isPlaying;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  RepeatMode get repeatMode => _repeatMode;
+  PlaybackRepeatMode get repeatMode => _repeatMode;
 
   LyricLine? get activeLyric {
     if (_lyrics.isEmpty) return null;
@@ -115,27 +115,27 @@ class PlayerController extends ChangeNotifier {
 
   void cycleRepeatMode() {
     _repeatMode = switch (_repeatMode) {
-      RepeatMode.off => RepeatMode.one,
-      RepeatMode.one => RepeatMode.all,
-      RepeatMode.all => RepeatMode.off,
+      PlaybackRepeatMode.off => PlaybackRepeatMode.one,
+      PlaybackRepeatMode.one => PlaybackRepeatMode.all,
+      PlaybackRepeatMode.all => PlaybackRepeatMode.off,
     };
     notifyListeners();
   }
 
   Song? _nextSong() {
     if (_current == null || _queue.isEmpty) return _current;
-    if (_repeatMode == RepeatMode.one) return _current;
+    if (_repeatMode == PlaybackRepeatMode.one) return _current;
     final index = _queue.indexWhere((song) => song.id == _current!.id);
     if (index == -1) return _queue.first;
     if (index + 1 < _queue.length) return _queue[index + 1];
-    return _repeatMode == RepeatMode.all ? _queue.first : null;
+    return _repeatMode == PlaybackRepeatMode.all ? _queue.first : null;
   }
 
   Song? _previousSong() {
     if (_current == null || _queue.isEmpty) return _current;
     final index = _queue.indexWhere((song) => song.id == _current!.id);
     if (index > 0) return _queue[index - 1];
-    return _repeatMode == RepeatMode.all ? _queue.last : null;
+    return _repeatMode == PlaybackRepeatMode.all ? _queue.last : null;
   }
 
   @override

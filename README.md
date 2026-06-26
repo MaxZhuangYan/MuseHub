@@ -15,11 +15,8 @@ Install Flutter SDK 3.22 or newer, then run:
 
 ```sh
 flutter pub get
-flutter create --platforms=android,ios .
 flutter run
 ```
-
-`flutter create` is intentionally listed after `pub get` only as a platform bootstrap step for this repo. The app source already lives in `lib/`.
 
 ## API Server
 
