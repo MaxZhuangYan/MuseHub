@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class MuseTheme {
   static ThemeData light() {
@@ -21,7 +20,6 @@ class MuseTheme {
   static ThemeData _base(ColorScheme scheme) {
     return ThemeData(
       colorScheme: scheme,
-      textTheme: GoogleFonts.interTextTheme(),
       useMaterial3: true,
       navigationBarTheme: NavigationBarThemeData(
         indicatorColor: scheme.primaryContainer,
