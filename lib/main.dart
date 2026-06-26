@@ -129,10 +129,12 @@ class MiniPlayer extends StatelessWidget {
                     children: [
                       Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                       Text(
-                        player.activeLyric?.text ?? song.artistText,
+                        player.error ?? player.activeLyric?.text ?? song.artistText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: player.error == null ? null : Theme.of(context).colorScheme.error,
+                            ),
                       ),
                     ],
                   ),

@@ -83,7 +83,7 @@ class PlayerController extends ChangeNotifier {
       }
       await _audio.setUrl(url);
       await _audio.play();
-      _lyrics = await _api.lyrics(song.id);
+      _loadLyrics(song.id);
     } catch (error) {
       _error = error.toString();
     } finally {
@@ -102,6 +102,15 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> seek(Duration position) => _audio.seek(position);
+
+  Future<void> _loadLyrics(int songId) async {
+    try {
+      _lyrics = await _api.lyrics(songId);
+      notifyListeners();
+    } catch (_) {
+      // Lyrics are optional and should not interrupt playback.
+    }
+  }
 
   Future<void> next() async {
     final song = _nextSong();
