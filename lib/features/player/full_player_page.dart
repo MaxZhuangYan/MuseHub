@@ -74,6 +74,14 @@ class FullPlayerPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
+            if (player.error != null) ...[
+              Text(
+                player.error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 12),
+            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
