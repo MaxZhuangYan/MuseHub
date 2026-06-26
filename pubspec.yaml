@@ -1,0 +1,26 @@
+name: musehub
+description: A Flutter mobile rebuild of AlgerMusicPlayer focused on search, discovery, queue playback, lyrics, and library workflows.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  cached_network_image: ^3.4.1
+  cupertino_icons: ^1.0.8
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.2.1
+  http: ^1.2.2
+  just_audio: ^0.9.42
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
