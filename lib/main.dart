@@ -82,14 +82,20 @@ class _AppShellState extends State<AppShell> {
         selectedIndex: _index,
         onDestinationSelected: (value) => setState(() => _index = value),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home'),
           NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
           NavigationDestination(
             icon: Icon(Icons.library_music_outlined),
             selectedIcon: Icon(Icons.library_music),
             label: 'Library',
           ),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
+          NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings),
+              label: 'Settings'),
         ],
       ),
     );
@@ -105,12 +111,17 @@ class MiniPlayer extends StatelessWidget {
     final song = player.current;
     if (song == null) return const SizedBox.shrink();
 
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       child: Material(
-        elevation: 8,
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(28),
+        elevation: 16,
+        color: scheme.surfaceContainer.withValues(alpha: 0.9),
+        shadowColor: Colors.black.withValues(alpha: 0.45),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+          side: BorderSide(color: scheme.onSurface.withValues(alpha: 0.08)),
+        ),
         child: InkWell(
           borderRadius: BorderRadius.circular(28),
           onTap: () => Navigator.of(context).push(
@@ -120,20 +131,30 @@ class MiniPlayer extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
             child: Row(
               children: [
-                CoverArt(url: song.coverUrl, size: 44, borderRadius: 22),
+                CoverArt(url: song.coverUrl, size: 46, borderRadius: 23),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                       Text(
-                        player.error ?? player.activeLyric?.text ?? song.artistText,
+                        song.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w900, letterSpacing: 0),
+                      ),
+                      Text(
+                        player.error ??
+                            player.activeLyric?.text ??
+                            song.artistText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: player.error == null ? null : Theme.of(context).colorScheme.error,
+                              color: player.error == null
+                                  ? null
+                                  : Theme.of(context).colorScheme.error,
                             ),
                       ),
                     ],
@@ -142,12 +163,19 @@ class MiniPlayer extends StatelessWidget {
                 if (player.isLoading)
                   const Padding(
                     padding: EdgeInsets.all(12),
-                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
                   )
                 else
                   IconButton(
                     tooltip: player.isPlaying ? 'Pause' : 'Play',
-                    icon: Icon(player.isPlaying ? Icons.pause_circle : Icons.play_circle),
+                    icon: Icon(
+                      player.isPlaying ? Icons.pause_circle : Icons.play_circle,
+                      color: scheme.primary,
+                      size: 34,
+                    ),
                     onPressed: player.toggle,
                   ),
                 IconButton(
