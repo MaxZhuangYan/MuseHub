@@ -7,8 +7,8 @@ void main() {
     await tester.pumpWidget(MuseHubApp(api: MusicApi()));
     await tester.pump();
 
-    expect(find.text('MuseHub'), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Search'), findsOneWidget);
+    expect(find.text('Library'), findsOneWidget);
   });
 }
