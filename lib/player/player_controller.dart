@@ -84,6 +84,7 @@ class PlayerController extends ChangeNotifier {
 
     try {
       await _audio.stop();
+      _loadLyrics(song.id);
       final url = await _api.songUrl(song);
       if (url == null) {
         throw const MusicApiException(
@@ -92,7 +93,6 @@ class PlayerController extends ChangeNotifier {
       }
       await _audio.setUrl(url).timeout(const Duration(seconds: 12));
       await _audio.play();
-      _loadLyrics(song.id);
     } catch (error) {
       await _audio.stop();
       _position = Duration.zero;

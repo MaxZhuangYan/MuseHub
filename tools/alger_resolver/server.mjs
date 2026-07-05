@@ -5,8 +5,10 @@ import match from '@unblockneteasemusic/server';
 const DEFAULT_PORT = 30489;
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_NETEASE_API = 'https://netease-cloud-music-api-five-roan-88.vercel.app';
-const ALL_PLATFORMS = ['migu', 'kugou', 'kuwo', 'pyncmd'];
+const ALL_PLATFORMS = ['pyncmd', 'kugou', 'kuwo', 'migu'];
+const SOURCE_PRIORITY = ['pyncmd', 'kugou', 'kuwo', 'migu'];
 const MIN_AUDIO_BYTES = Number.parseInt(process.env.MIN_AUDIO_BYTES || `${512 * 1024}`, 10);
+const MAX_CANDIDATES = Number.parseInt(process.env.MAX_CANDIDATES || '6', 10);
 const neteaseApiBaseUrl = (process.env.NETEASE_API || DEFAULT_NETEASE_API).replace(/\/+$/, '');
 
 const port = Number.parseInt(process.env.PORT || `${DEFAULT_PORT}`, 10);
@@ -62,6 +64,15 @@ function sendJson(response, statusCode, data) {
     'content-length': Buffer.byteLength(body),
   });
   response.end(body);
+}
+
+function normalizeSources(sources) {
+  const allowed = new Set(
+    Array.isArray(sources)
+      ? sources.filter((source) => ALL_PLATFORMS.includes(source))
+      : ALL_PLATFORMS,
+  );
+  return SOURCE_PRIORITY.filter((source) => allowed.has(source));
 }
 
 function requestHead(url, redirectCount = 0) {
@@ -223,7 +234,8 @@ async function searchCandidates(id, songData) {
           : songData.artists,
         album: { name: song.al?.name || songData.album?.name || '' },
       }))
-      .filter((song) => Number.isFinite(song.id) && song.id !== id);
+      .filter((song) => Number.isFinite(song.id) && song.id !== id)
+      .slice(0, MAX_CANDIDATES);
   } catch (error) {
     return [];
   }
@@ -257,9 +269,7 @@ async function resolveMusic(body) {
     return { code: 400, message: 'Missing song id' };
   }
 
-  const enabledSources = Array.isArray(body.enabledSources)
-    ? body.enabledSources.filter((source) => ALL_PLATFORMS.includes(source))
-    : ALL_PLATFORMS;
+  const enabledSources = normalizeSources(body.enabledSources);
   const songData = ensureSongData(body.songData || body.data || {});
   const primary = await resolveBySources(id, songData, enabledSources);
   let data = primary.data;
@@ -302,8 +312,16 @@ const server = http.createServer(async (request, response) => {
   }
 
   const url = new URL(request.url || '/', `http://${request.headers.host}`);
-  if (request.method === 'GET' && url.pathname === '/health') {
-    sendJson(response, 200, { ok: true, sources: ALL_PLATFORMS });
+  if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
+    sendJson(response, 200, {
+      ok: true,
+      name: 'MuseHub Alger resolver',
+      endpoints: ['GET /health', 'POST /unblock-music'],
+      sources: SOURCE_PRIORITY,
+      minAudioBytes: MIN_AUDIO_BYTES,
+      maxCandidates: MAX_CANDIDATES,
+      neteaseApiBaseUrl,
+    });
     return;
   }
 

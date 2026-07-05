@@ -38,6 +38,7 @@ class MusicApi {
       'https://netease-cloud-music-api-five-roan-88.vercel.app';
   static const defaultResolverBaseUrl = '';
   static const _requestTimeout = Duration(seconds: 8);
+  static const _resolverTimeout = Duration(seconds: 45);
   static const _cacheTtl = Duration(minutes: 10);
   static const _maxAttempts = 3;
 
@@ -171,7 +172,7 @@ class MusicApi {
     final uri = Uri.parse('$_resolverBaseUrl/unblock-music');
     final payload = {
       'id': song.id,
-      'enabledSources': const ['migu', 'kugou', 'kuwo', 'pyncmd'],
+      'enabledSources': const ['pyncmd', 'kugou', 'kuwo', 'migu'],
       'songData': {
         'name': song.name,
         'artists': song.artists
@@ -192,7 +193,7 @@ class MusicApi {
             headers: {'content-type': 'application/json'},
             body: jsonEncode(payload),
           )
-          .timeout(_requestTimeout);
+          .timeout(_resolverTimeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return null;
       }
