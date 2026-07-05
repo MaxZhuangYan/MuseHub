@@ -21,8 +21,8 @@ class PlayerController extends ChangeNotifier {
     });
     _stateSub = _audio.playerStateStream.listen((state) {
       _isPlaying = state.playing;
-      if (state.processingState == ProcessingState.completed) {
-        next();
+      if (!_isLoading && state.processingState == ProcessingState.completed) {
+        unawaited(next(automatic: true));
       }
       notifyListeners();
     });
@@ -44,6 +44,7 @@ class PlayerController extends ChangeNotifier {
   String? _error;
   PlaybackRepeatMode _repeatMode = PlaybackRepeatMode.all;
   final Set<int> _unplayableIds = {};
+  int _playRequestId = 0;
 
   List<Song> get queue => List.unmodifiable(_queue);
   Song? get current => _current;
@@ -65,6 +66,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> playSong(Song song, {List<Song>? queue}) async {
+    final requestId = ++_playRequestId;
     if (queue != null && queue.isNotEmpty) {
       _queue = queue;
     } else if (!_queue.any((item) => item.id == song.id)) {
@@ -84,34 +86,43 @@ class PlayerController extends ChangeNotifier {
 
     try {
       await _audio.stop();
-      _loadLyrics(song.id);
+      if (!_isCurrentRequest(requestId, song.id)) return;
+      unawaited(_loadLyrics(song.id, requestId));
       final url = await _api.songUrl(song);
+      if (!_isCurrentRequest(requestId, song.id)) return;
       if (url == null) {
         throw const MusicApiException(
           'This track is unavailable from the current music source.',
         );
       }
       await _audio.setUrl(url).timeout(const Duration(seconds: 12));
+      if (!_isCurrentRequest(requestId, song.id)) return;
       await _audio.play();
     } catch (error) {
+      if (!_isCurrentRequest(requestId, song.id)) return;
       await _audio.stop();
+      if (!_isCurrentRequest(requestId, song.id)) return;
       _position = Duration.zero;
       _isPlaying = false;
       _error = error.toString();
       _unplayableIds.add(song.id);
       if (_queue.length > 1) {
         Future<void>.delayed(const Duration(milliseconds: 900), () {
-          if (_current?.id == song.id && _error != null) next();
+          if (_isCurrentRequest(requestId, song.id) && _error != null) {
+            unawaited(next());
+          }
         });
       }
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (_isCurrentRequest(requestId, song.id)) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
   Future<void> toggle() async {
-    if (_current == null) return;
+    if (_current == null || _isLoading) return;
     if (_error != null) {
       final song = _current!;
       _unplayableIds.remove(song.id);
@@ -127,17 +138,25 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> seek(Duration position) => _audio.seek(position);
 
-  Future<void> _loadLyrics(int songId) async {
+  Future<void> _loadLyrics(int songId, int requestId) async {
     try {
-      _lyrics = await _api.lyrics(songId);
+      final lyrics = await _api.lyrics(songId);
+      if (!_isCurrentRequest(requestId, songId)) return;
+      _lyrics = lyrics;
       notifyListeners();
     } catch (_) {
       // Lyrics are optional and should not interrupt playback.
     }
   }
 
-  Future<void> next() async {
-    final song = _nextSong(skipUnplayable: true);
+  bool _isCurrentRequest(int requestId, int songId) =>
+      requestId == _playRequestId && _current?.id == songId;
+
+  Future<void> next({bool automatic = false}) async {
+    final song = _nextSong(
+      skipUnplayable: true,
+      respectRepeatOne: automatic,
+    );
     if (song != null) await playSong(song);
   }
 
@@ -155,9 +174,13 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Song? _nextSong({bool skipUnplayable = false}) {
+  Song? _nextSong({
+    bool skipUnplayable = false,
+    bool respectRepeatOne = false,
+  }) {
     if (_current == null || _queue.isEmpty) return _current;
-    if (_repeatMode == PlaybackRepeatMode.one &&
+    if (respectRepeatOne &&
+        _repeatMode == PlaybackRepeatMode.one &&
         (!skipUnplayable || !_unplayableIds.contains(_current!.id))) {
       return _current;
     }
