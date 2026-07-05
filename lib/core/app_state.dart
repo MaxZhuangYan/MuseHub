@@ -10,20 +10,28 @@ class AppState extends ChangeNotifier {
   final MusicApi api;
 
   static const _apiBaseUrlKey = 'apiBaseUrl';
+  static const _resolverBaseUrlKey = 'resolverBaseUrl';
   final Set<int> _favoriteIds = {};
   String _apiBaseUrl = MusicApi.defaultBaseUrl;
+  String _resolverBaseUrl = MusicApi.defaultResolverBaseUrl;
 
   String get apiBaseUrl => _apiBaseUrl;
+  String get resolverBaseUrl => _resolverBaseUrl;
   Set<int> get favoriteIds => Set.unmodifiable(_favoriteIds);
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _apiBaseUrl = prefs.getString(_apiBaseUrlKey) ?? MusicApi.defaultBaseUrl;
+    _resolverBaseUrl =
+        prefs.getString(_resolverBaseUrlKey) ?? MusicApi.defaultResolverBaseUrl;
     api.baseUrl = _apiBaseUrl;
+    api.resolverBaseUrl = _resolverBaseUrl;
     final storedFavorites = prefs.getStringList('favorites') ?? const [];
     _favoriteIds
       ..clear()
-      ..addAll(storedFavorites.map((item) => int.tryParse(item) ?? 0).where((id) => id != 0));
+      ..addAll(storedFavorites
+          .map((item) => int.tryParse(item) ?? 0)
+          .where((id) => id != 0));
     notifyListeners();
   }
 
@@ -37,6 +45,15 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setResolverBaseUrl(String value) async {
+    final trimmed = value.trim();
+    _resolverBaseUrl = trimmed;
+    api.resolverBaseUrl = trimmed;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_resolverBaseUrlKey, trimmed);
+    notifyListeners();
+  }
+
   Future<void> toggleFavorite(Song song) async {
     if (_favoriteIds.contains(song.id)) {
       _favoriteIds.remove(song.id);
@@ -44,7 +61,8 @@ class AppState extends ChangeNotifier {
       _favoriteIds.add(song.id);
     }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorites', _favoriteIds.map((id) => '$id').toList());
+    await prefs.setStringList(
+        'favorites', _favoriteIds.map((id) => '$id').toList());
     notifyListeners();
   }
 

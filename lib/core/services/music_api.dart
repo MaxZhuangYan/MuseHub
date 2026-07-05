@@ -35,6 +35,7 @@ class MusicApi {
 
   static const defaultBaseUrl =
       'https://netease-cloud-music-api-five-roan-88.vercel.app';
+  static const defaultResolverBaseUrl = '';
   static const _requestTimeout = Duration(seconds: 8);
   static const _cacheTtl = Duration(minutes: 10);
   static const _maxAttempts = 3;
@@ -42,11 +43,17 @@ class MusicApi {
   final http.Client _client;
   final Map<String, _CachedJson> _cache = {};
   String _baseUrl;
+  String _resolverBaseUrl = defaultResolverBaseUrl;
 
   String get baseUrl => _baseUrl;
+  String get resolverBaseUrl => _resolverBaseUrl;
 
   set baseUrl(String value) {
     _baseUrl = _normalizeBaseUrl(value);
+  }
+
+  set resolverBaseUrl(String value) {
+    _resolverBaseUrl = _normalizeOptionalBaseUrl(value);
   }
 
   Future<HomeSnapshot> getHomeSnapshot() async {
@@ -119,11 +126,15 @@ class MusicApi {
     return names.take(10).toList();
   }
 
-  Future<String?> songUrl(int id, {String level = 'higher'}) async {
+  Future<String?> songUrl(Song song, {String level = 'higher'}) async {
     for (final candidateLevel in [level, 'exhigh', 'standard']) {
       final data = await _get(
         '/song/url/v1',
-        query: {'id': '$id', 'level': candidateLevel, 'encodeType': 'aac'},
+        query: {
+          'id': '${song.id}',
+          'level': candidateLevel,
+          'encodeType': 'aac'
+        },
       );
       final url = _readSongUrl(data);
       if (url != null) return url;
@@ -131,12 +142,12 @@ class MusicApi {
 
     final data = await _get(
       '/song/url',
-      query: {'id': '$id', 'br': '128000'},
+      query: {'id': '${song.id}', 'br': '128000'},
     );
     final url = _readSongUrl(data);
     if (url != null) return url;
 
-    return null;
+    return _resolveWithAlgerFallback(song);
   }
 
   String? _readSongUrl(Map<String, dynamic> data) {
@@ -149,6 +160,63 @@ class MusicApi {
     return url.startsWith('http://')
         ? url.replaceFirst('http://', 'https://')
         : url;
+  }
+
+  Future<String?> _resolveWithAlgerFallback(Song song) async {
+    if (_resolverBaseUrl.isEmpty) return null;
+
+    final uri = Uri.parse('$_resolverBaseUrl/unblock-music');
+    final payload = {
+      'id': song.id,
+      'enabledSources': const ['migu', 'kugou', 'kuwo', 'pyncmd'],
+      'songData': {
+        'name': song.name,
+        'artists': song.artists
+            .map((artist) => {'id': artist.id, 'name': artist.name})
+            .toList(),
+        'album': {'name': song.album},
+        'ar': song.artists
+            .map((artist) => {'id': artist.id, 'name': artist.name})
+            .toList(),
+        'al': {'name': song.album},
+      },
+    };
+
+    try {
+      final response = await _client
+          .post(
+            uri,
+            headers: {'content-type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(_requestTimeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return null;
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      return _readResolvedUrl(decoded);
+    } on Object {
+      return null;
+    }
+  }
+
+  String? _readResolvedUrl(Map<String, dynamic> data) {
+    final candidates = [
+      data['url'],
+      (data['data'] as Map?)?['url'],
+      ((data['data'] as Map?)?['data'] as Map?)?['url'],
+      (((data['data'] as Map?)?['data'] as Map?)?['data'] as Map?)?['url'],
+    ];
+    for (final candidate in candidates) {
+      final url = candidate?.toString();
+      if (url != null && url.isNotEmpty) {
+        return url.startsWith('http://')
+            ? url.replaceFirst('http://', 'https://')
+            : url;
+      }
+    }
+    return null;
   }
 
   Future<List<Song>> songDetails(List<int> ids) async {
@@ -264,6 +332,16 @@ class MusicApi {
   static String _normalizeBaseUrl(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return defaultBaseUrl;
+    return _normalizeNonEmptyBaseUrl(trimmed);
+  }
+
+  static String _normalizeOptionalBaseUrl(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return '';
+    return _normalizeNonEmptyBaseUrl(trimmed);
+  }
+
+  static String _normalizeNonEmptyBaseUrl(String trimmed) {
     final withoutTrailingSlash = trimmed.endsWith('/')
         ? trimmed.substring(0, trimmed.length - 1)
         : trimmed;

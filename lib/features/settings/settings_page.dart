@@ -13,16 +13,20 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late final TextEditingController _apiController;
+  late final TextEditingController _resolverController;
 
   @override
   void initState() {
     super.initState();
-    _apiController = TextEditingController(text: context.read<AppState>().apiBaseUrl);
+    final appState = context.read<AppState>();
+    _apiController = TextEditingController(text: appState.apiBaseUrl);
+    _resolverController = TextEditingController(text: appState.resolverBaseUrl);
   }
 
   @override
   void dispose() {
     _apiController.dispose();
+    _resolverController.dispose();
     super.dispose();
   }
 
@@ -34,7 +38,10 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         Text(
           'Settings',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context)
+              .textTheme
+              .headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 20),
         TextField(
@@ -47,14 +54,26 @@ class _SettingsPageState extends State<SettingsPage> {
           keyboardType: TextInputType.url,
         ),
         const SizedBox(height: 12),
+        TextField(
+          controller: _resolverController,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            labelText: 'Alger fallback resolver URL',
+            helperText: 'Optional. Example: http://127.0.0.1:30489',
+            prefixIcon: Icon(Icons.hub),
+          ),
+          keyboardType: TextInputType.url,
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             FilledButton.icon(
               onPressed: () async {
                 await appState.setApiBaseUrl(_apiController.text);
+                await appState.setResolverBaseUrl(_resolverController.text);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('API server updated')),
+                    const SnackBar(content: Text('Music services updated')),
                   );
                 }
               },
@@ -63,7 +82,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(width: 8),
             TextButton(
-              onPressed: () => _apiController.text = MusicApi.defaultBaseUrl,
+              onPressed: () {
+                _apiController.text = MusicApi.defaultBaseUrl;
+                _resolverController.text = MusicApi.defaultResolverBaseUrl;
+              },
               child: const Text('Reset'),
             ),
           ],
@@ -79,7 +101,8 @@ class _SettingsPageState extends State<SettingsPage> {
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.phone_android),
           title: Text('Mobile rebuild'),
-          subtitle: Text('Flutter shell inspired by AlgerMusicPlayer desktop workflows'),
+          subtitle: Text(
+              'Flutter shell inspired by AlgerMusicPlayer desktop workflows'),
         ),
       ],
     );

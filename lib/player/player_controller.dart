@@ -84,7 +84,7 @@ class PlayerController extends ChangeNotifier {
 
     try {
       await _audio.stop();
-      final url = await _api.songUrl(song.id);
+      final url = await _api.songUrl(song);
       if (url == null) {
         throw const MusicApiException(
           'This track is unavailable from the current music source.',

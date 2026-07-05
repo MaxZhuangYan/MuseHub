@@ -35,6 +35,31 @@ https://your-host.example/
 https://your-host.example/api.php
 ```
 
+## Alger Fallback Resolver
+
+AlgerMusicPlayer does not rely only on `/song/url/v1`. When the official URL
+is empty, it falls back to `@unblockneteasemusic/server` with sources such as
+Migu, Kugou, Kuwo, and pyncmd. MuseHub can call the same style of resolver over
+HTTP.
+
+Run the local resolver:
+
+```sh
+cd tools/alger_resolver
+npm install
+npm start
+```
+
+Then set **Settings -> Alger fallback resolver URL**:
+
+```txt
+http://127.0.0.1:30489       # macOS desktop target
+http://10.0.2.2:30489        # Android emulator talking to this Mac
+http://YOUR_MAC_LAN_IP:30489 # physical phone on the same Wi-Fi
+```
+
+Leave the field empty to disable fallback resolving.
+
 ## Project Layout
 
 ```txt

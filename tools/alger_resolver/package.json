@@ -1,0 +1,12 @@
+{
+  "name": "musehub-alger-resolver",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@unblockneteasemusic/server": "^0.27.10"
+  }
+}
