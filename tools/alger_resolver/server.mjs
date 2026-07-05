@@ -1,9 +1,13 @@
 import http from 'node:http';
+import https from 'node:https';
 import match from '@unblockneteasemusic/server';
 
 const DEFAULT_PORT = 30489;
 const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_NETEASE_API = 'https://netease-cloud-music-api-five-roan-88.vercel.app';
 const ALL_PLATFORMS = ['migu', 'kugou', 'kuwo', 'pyncmd'];
+const MIN_AUDIO_BYTES = Number.parseInt(process.env.MIN_AUDIO_BYTES || `${512 * 1024}`, 10);
+const neteaseApiBaseUrl = (process.env.NETEASE_API || DEFAULT_NETEASE_API).replace(/\/+$/, '');
 
 const port = Number.parseInt(process.env.PORT || `${DEFAULT_PORT}`, 10);
 const host = process.env.HOST || DEFAULT_HOST;
@@ -60,6 +64,193 @@ function sendJson(response, statusCode, data) {
   response.end(body);
 }
 
+function requestHead(url, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirectCount > 4) {
+      reject(new Error('Too many redirects'));
+      return;
+    }
+
+    const parsedUrl = new URL(url);
+    const client = parsedUrl.protocol === 'https:' ? https : http;
+    const request = client.request(
+      parsedUrl,
+      {
+        method: 'HEAD',
+        timeout: 8000,
+        headers: {
+          'accept': '*/*',
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Safari/537.36',
+        },
+      },
+      (response) => {
+        const location = response.headers.location;
+        if (
+          location &&
+          [301, 302, 303, 307, 308].includes(response.statusCode || 0)
+        ) {
+          response.resume();
+          resolve(requestHead(new URL(location, parsedUrl).toString(), redirectCount + 1));
+          return;
+        }
+        response.resume();
+        resolve({
+          statusCode: response.statusCode || 0,
+          contentLength: Number.parseInt(`${response.headers['content-length'] || 0}`, 10),
+          contentType: `${response.headers['content-type'] || ''}`,
+        });
+      },
+    );
+    request.on('timeout', () => request.destroy(new Error('HEAD timeout')));
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+function getJson(url, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirectCount > 4) {
+      reject(new Error('Too many redirects'));
+      return;
+    }
+
+    const parsedUrl = new URL(url);
+    const client = parsedUrl.protocol === 'https:' ? https : http;
+    const request = client.get(
+      parsedUrl,
+      {
+        timeout: 10000,
+        headers: {
+          'accept': 'application/json, text/plain, */*',
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Safari/537.36',
+        },
+      },
+      (response) => {
+        const location = response.headers.location;
+        if (
+          location &&
+          [301, 302, 303, 307, 308].includes(response.statusCode || 0)
+        ) {
+          response.resume();
+          resolve(getJson(new URL(location, parsedUrl).toString(), redirectCount + 1));
+          return;
+        }
+
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
+    request.on('timeout', () => request.destroy(new Error('GET timeout')));
+    request.on('error', reject);
+  });
+}
+
+async function isUsableAudio(data) {
+  if (!data?.url || typeof data.url !== 'string') {
+    return { ok: false, reason: 'missing url' };
+  }
+
+  const declaredSize = Number.parseInt(`${data.size || 0}`, 10);
+  if (declaredSize > 0 && declaredSize < MIN_AUDIO_BYTES) {
+    return {
+      ok: false,
+      reason: `declared audio too small: ${declaredSize} bytes`,
+    };
+  }
+  if (declaredSize >= MIN_AUDIO_BYTES) {
+    return { ok: true };
+  }
+
+  try {
+    const head = await requestHead(data.url);
+    if (head.statusCode < 200 || head.statusCode >= 300) {
+      return { ok: false, reason: `bad status: ${head.statusCode}` };
+    }
+    if (head.contentType && !/^audio\//i.test(head.contentType)) {
+      return { ok: false, reason: `not audio: ${head.contentType}` };
+    }
+    if (head.contentLength > 0 && head.contentLength < MIN_AUDIO_BYTES) {
+      return {
+        ok: false,
+        reason: `remote audio too small: ${head.contentLength} bytes`,
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : 'HEAD failed',
+    };
+  }
+}
+
+function artistText(songData) {
+  return (songData.artists || [])
+    .map((artist) => artist?.name || '')
+    .filter(Boolean)
+    .join(' ');
+}
+
+async function searchCandidates(id, songData) {
+  const keywords = `${songData.name || ''} ${artistText(songData)}`.trim();
+  if (!keywords) return [];
+
+  const url = new URL(`${neteaseApiBaseUrl}/cloudsearch`);
+  url.searchParams.set('keywords', keywords);
+  url.searchParams.set('type', '1');
+  url.searchParams.set('limit', '10');
+  url.searchParams.set('timestamp', `${Date.now()}`);
+
+  try {
+    const data = await getJson(url.toString());
+    const songs = data?.result?.songs;
+    if (!Array.isArray(songs)) return [];
+    return songs
+      .map((song) => ({
+        id: Number.parseInt(`${song.id || 0}`, 10),
+        name: song.name || songData.name || '',
+        artists: Array.isArray(song.ar)
+          ? song.ar.map((artist) => ({ name: artist?.name || '' }))
+          : songData.artists,
+        album: { name: song.al?.name || songData.album?.name || '' },
+      }))
+      .filter((song) => Number.isFinite(song.id) && song.id !== id);
+  } catch (error) {
+    return [];
+  }
+}
+
+async function resolveBySources(id, songData, enabledSources) {
+  const failures = [];
+
+  for (const source of enabledSources) {
+    try {
+      const candidate = await match(id, [source], songData);
+      const validation = await isUsableAudio(candidate);
+      if (validation.ok) {
+        return { data: candidate, failures };
+      }
+      failures.push({ source, reason: validation.reason, data: candidate });
+    } catch (error) {
+      failures.push({
+        source,
+        reason: error instanceof Error ? error.message : `${error}`,
+      });
+    }
+  }
+
+  return { data: null, failures };
+}
+
 async function resolveMusic(body) {
   const id = Number.parseInt(`${body.id || body.songId || ''}`, 10);
   if (!Number.isFinite(id)) {
@@ -70,7 +261,29 @@ async function resolveMusic(body) {
     ? body.enabledSources.filter((source) => ALL_PLATFORMS.includes(source))
     : ALL_PLATFORMS;
   const songData = ensureSongData(body.songData || body.data || {});
-  const data = await match(id, enabledSources, songData);
+  const primary = await resolveBySources(id, songData, enabledSources);
+  let data = primary.data;
+  const failures = [{ songId: id, attempts: primary.failures }];
+
+  if (!data) {
+    const candidates = await searchCandidates(id, songData);
+    for (const candidateSong of candidates) {
+      const candidate = await resolveBySources(candidateSong.id, candidateSong, enabledSources);
+      failures.push({ songId: candidateSong.id, attempts: candidate.failures });
+      if (candidate.data) {
+        data = { ...candidate.data, resolvedSongId: candidateSong.id };
+        break;
+      }
+    }
+  }
+
+  if (!data) {
+    return {
+      code: 404,
+      message: 'No usable audio source found',
+      failures,
+    };
+  }
 
   return {
     code: 200,
