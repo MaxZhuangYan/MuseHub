@@ -13,7 +13,7 @@ class AppState extends ChangeNotifier {
   static const _resolverBaseUrlKey = 'resolverBaseUrl';
   final Set<int> _favoriteIds = {};
   String _apiBaseUrl = MusicApi.defaultBaseUrl;
-  String _resolverBaseUrl = MusicApi.defaultResolverBaseUrl;
+  String _resolverBaseUrl = _defaultResolverBaseUrl;
 
   String get apiBaseUrl => _apiBaseUrl;
   String get resolverBaseUrl => _resolverBaseUrl;
@@ -22,8 +22,10 @@ class AppState extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _apiBaseUrl = prefs.getString(_apiBaseUrlKey) ?? MusicApi.defaultBaseUrl;
-    _resolverBaseUrl =
-        prefs.getString(_resolverBaseUrlKey) ?? MusicApi.defaultResolverBaseUrl;
+    final storedResolver = prefs.getString(_resolverBaseUrlKey);
+    _resolverBaseUrl = storedResolver == null || storedResolver.trim().isEmpty
+        ? _defaultResolverBaseUrl
+        : storedResolver;
     api.baseUrl = _apiBaseUrl;
     api.resolverBaseUrl = _resolverBaseUrl;
     final storedFavorites = prefs.getStringList('favorites') ?? const [];
@@ -67,4 +69,13 @@ class AppState extends ChangeNotifier {
   }
 
   bool isFavorite(Song song) => _favoriteIds.contains(song.id);
+
+  static String get _defaultResolverBaseUrl {
+    if (kIsWeb) return MusicApi.defaultResolverBaseUrl;
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'http://10.0.2.2:30489',
+      TargetPlatform.macOS => 'http://127.0.0.1:30489',
+      _ => MusicApi.defaultResolverBaseUrl,
+    };
+  }
 }

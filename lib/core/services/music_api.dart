@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
 
@@ -147,6 +148,10 @@ class MusicApi {
     final url = _readSongUrl(data);
     if (url != null) return url;
 
+    developer.log(
+      'Official Netease URL unavailable for ${song.id}; trying Alger fallback',
+      name: 'MuseHub.MusicApi',
+    );
     return _resolveWithAlgerFallback(song);
   }
 
@@ -157,9 +162,7 @@ class MusicApi {
     if (first is! Map<String, dynamic>) return null;
     final url = first['url']?.toString();
     if (url == null || url.isEmpty) return null;
-    return url.startsWith('http://')
-        ? url.replaceFirst('http://', 'https://')
-        : url;
+    return url;
   }
 
   Future<String?> _resolveWithAlgerFallback(Song song) async {
@@ -195,8 +198,24 @@ class MusicApi {
       }
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) return null;
-      return _readResolvedUrl(decoded);
-    } on Object {
+      final resolvedUrl = _readResolvedUrl(decoded);
+      if (resolvedUrl == null) {
+        developer.log(
+          'Alger fallback returned no URL for ${song.id}: ${response.body}',
+          name: 'MuseHub.MusicApi',
+        );
+      } else {
+        developer.log(
+          'Alger fallback resolved ${song.id}: $resolvedUrl',
+          name: 'MuseHub.MusicApi',
+        );
+      }
+      return resolvedUrl;
+    } on Object catch (error) {
+      developer.log(
+        'Alger fallback failed for ${song.id}: $error',
+        name: 'MuseHub.MusicApi',
+      );
       return null;
     }
   }
@@ -211,9 +230,7 @@ class MusicApi {
     for (final candidate in candidates) {
       final url = candidate?.toString();
       if (url != null && url.isNotEmpty) {
-        return url.startsWith('http://')
-            ? url.replaceFirst('http://', 'https://')
-            : url;
+        return url;
       }
     }
     return null;
