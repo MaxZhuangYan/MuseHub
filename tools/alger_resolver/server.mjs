@@ -3,8 +3,8 @@ import https from 'node:https';
 import match from '@unblockneteasemusic/server';
 
 const DEFAULT_PORT = 30489;
-const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_NETEASE_API = 'https://netease-cloud-music-api-five-roan-88.vercel.app';
+const DEFAULT_HOST = '0.0.0.0';
+const DEFAULT_NETEASE_API = 'https://music.163.com/api';
 const ALL_PLATFORMS = ['pyncmd', 'kugou', 'kuwo', 'migu'];
 const SOURCE_PRIORITY = ['pyncmd', 'kugou', 'kuwo', 'migu'];
 const MIN_AUDIO_BYTES = Number.parseInt(process.env.MIN_AUDIO_BYTES || `${512 * 1024}`, 10);
@@ -215,8 +215,8 @@ async function searchCandidates(id, songData) {
   const keywords = `${songData.name || ''} ${artistText(songData)}`.trim();
   if (!keywords) return [];
 
-  const url = new URL(`${neteaseApiBaseUrl}/cloudsearch`);
-  url.searchParams.set('keywords', keywords);
+  const url = new URL(`${neteaseApiBaseUrl}/search/get`);
+  url.searchParams.set('s', keywords);
   url.searchParams.set('type', '1');
   url.searchParams.set('limit', '10');
   url.searchParams.set('timestamp', `${Date.now()}`);

@@ -34,7 +34,8 @@ class MusicApi {
   })  : _client = client ?? http.Client(),
         _baseUrl = _normalizeBaseUrl(baseUrl);
 
-  static const defaultBaseUrl =
+  static const defaultBaseUrl = 'https://music.163.com/api';
+  static const legacyBaseUrl =
       'https://netease-cloud-music-api-five-roan-88.vercel.app';
   static const defaultResolverBaseUrl = '';
   static const _requestTimeout = Duration(seconds: 8);
@@ -49,6 +50,7 @@ class MusicApi {
 
   String get baseUrl => _baseUrl;
   String get resolverBaseUrl => _resolverBaseUrl;
+  bool get _usesDirectNetease => _baseUrl == defaultBaseUrl;
 
   set baseUrl(String value) {
     _baseUrl = _normalizeBaseUrl(value);
@@ -59,12 +61,32 @@ class MusicApi {
   }
 
   Future<HomeSnapshot> getHomeSnapshot() async {
-    final bannersData =
-        await _get('/banner', query: {'type': '2'}, allowCacheFallback: true);
+    final bannersData = await _getWithFallback(
+      _usesDirectNetease
+          ? const [
+              _ApiEndpoint('/v2/banner/get', query: {'clientType': 'pc'}),
+              _ApiEndpoint('/banner',
+                  query: {'type': '2'}, useLegacyBase: true),
+            ]
+          : const [
+              _ApiEndpoint('/banner', query: {'type': '2'}),
+            ],
+      allowCacheFallback: true,
+    );
     final newSongsData = await _get('/personalized/newsong',
         query: {'limit': '12'}, allowCacheFallback: true);
-    final playlistsData = await _get('/personalized',
-        query: {'limit': '12'}, allowCacheFallback: true);
+    final playlistsData = await _getWithFallback(
+      _usesDirectNetease
+          ? const [
+              _ApiEndpoint('/personalized/playlist', query: {'limit': '12'}),
+              _ApiEndpoint('/personalized',
+                  query: {'limit': '12'}, useLegacyBase: true),
+            ]
+          : const [
+              _ApiEndpoint('/personalized', query: {'limit': '12'}),
+            ],
+      allowCacheFallback: true,
+    );
 
     final banners = ((bannersData['banners'] as List?) ?? const [])
         .whereType<Map<String, dynamic>>()
@@ -93,25 +115,74 @@ class MusicApi {
 
   Future<List<Song>> searchSongs(String keyword,
       {int limit = 30, int offset = 0}) async {
-    final data = await _get(
-      '/cloudsearch',
-      query: {
-        'keywords': keyword,
-        'type': '1',
-        'limit': '$limit',
-        'offset': '$offset',
-      },
+    final data = await _getWithFallback(
+      _usesDirectNetease
+          ? [
+              _ApiEndpoint(
+                '/search/get',
+                query: {
+                  's': keyword,
+                  'type': '1',
+                  'limit': '$limit',
+                  'offset': '$offset',
+                },
+              ),
+              _ApiEndpoint(
+                '/cloudsearch',
+                query: {
+                  'keywords': keyword,
+                  'type': '1',
+                  'limit': '$limit',
+                  'offset': '$offset',
+                },
+                useLegacyBase: true,
+              ),
+            ]
+          : [
+              _ApiEndpoint(
+                '/cloudsearch',
+                query: {
+                  'keywords': keyword,
+                  'type': '1',
+                  'limit': '$limit',
+                  'offset': '$offset',
+                },
+              ),
+            ],
     );
-    return (((data['result'] as Map?)?['songs'] as List?) ?? const [])
+    final songs = (((data['result'] as Map?)?['songs'] as List?) ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(Song.fromJson)
         .where((song) => song.id != 0)
         .toList();
+    if (!_usesDirectNetease ||
+        songs.every((song) => song.coverUrl.isNotEmpty)) {
+      return songs;
+    }
+    final detailedSongs =
+        await songDetails(songs.map((song) => song.id).toList());
+    final detailsById = {for (final song in detailedSongs) song.id: song};
+    return [
+      for (final song in songs) detailsById[song.id] ?? song,
+    ];
   }
 
   Future<List<String>> searchSuggestions(String keyword) async {
     if (keyword.trim().isEmpty) return const [];
-    final data = await _get('/search/suggest', query: {'keywords': keyword});
+    final data = await _getWithFallback(
+      _usesDirectNetease
+          ? [
+              _ApiEndpoint('/search/suggest/web', query: {'s': keyword}),
+              _ApiEndpoint(
+                '/search/suggest',
+                query: {'keywords': keyword},
+                useLegacyBase: true,
+              ),
+            ]
+          : [
+              _ApiEndpoint('/search/suggest', query: {'keywords': keyword}),
+            ],
+    );
     final result = data['result'] as Map<String, dynamic>? ?? {};
     final names = <String>{};
 
@@ -129,31 +200,22 @@ class MusicApi {
   }
 
   Future<String?> songUrl(Song song, {String level = 'higher'}) async {
-    for (final candidateLevel in [level, 'exhigh', 'standard']) {
-      final data = await _get(
-        '/song/url/v1',
-        query: {
-          'id': '${song.id}',
-          'level': candidateLevel,
-          'encodeType': 'aac'
-        },
-      );
-      final url = _readSongUrl(data);
-      if (url != null) return url;
+    if (_usesDirectNetease) {
+      final directUrl = await _resolveWithDirectNetease(song);
+      if (directUrl != null) return directUrl;
+    } else {
+      final compatibleUrl = await _resolveWithCompatibleApi(song, level: level);
+      if (compatibleUrl != null) return compatibleUrl;
     }
 
-    final data = await _get(
-      '/song/url',
-      query: {'id': '${song.id}', 'br': '128000'},
-    );
-    final url = _readSongUrl(data);
-    if (url != null) return url;
-
     developer.log(
-      'Official Netease URL unavailable for ${song.id}; trying Alger fallback',
+      'Primary URL unavailable for ${song.id}; trying Alger fallback',
       name: 'MuseHub.MusicApi',
     );
-    return _resolveWithAlgerFallback(song);
+    final resolvedUrl = await _resolveWithAlgerFallback(song);
+    if (resolvedUrl != null) return resolvedUrl;
+
+    return null;
   }
 
   String? _readSongUrl(Map<String, dynamic> data) {
@@ -164,6 +226,49 @@ class MusicApi {
     final url = first['url']?.toString();
     if (url == null || url.isEmpty) return null;
     return url;
+  }
+
+  Future<String?> _resolveWithDirectNetease(Song song) async {
+    final data = await _getOrNull(
+      '/song/enhance/player/url',
+      query: {
+        'id': '${song.id}',
+        'ids': '[${song.id}]',
+        'br': '320000',
+      },
+    );
+    if (data == null) return null;
+    return _readSongUrl(data);
+  }
+
+  Future<String?> _resolveWithCompatibleApi(
+    Song song, {
+    required String level,
+    bool useLegacyBase = false,
+  }) async {
+    for (final candidateLevel in [level, 'exhigh', 'standard']) {
+      final data = await _getOrNull(
+        '/song/url/v1',
+        query: {
+          'id': '${song.id}',
+          'level': candidateLevel,
+          'encodeType': 'aac',
+        },
+        useLegacyBase: useLegacyBase,
+      );
+      if (data != null) {
+        final url = _readSongUrl(data);
+        if (url != null) return url;
+      }
+    }
+
+    final data = await _getOrNull(
+      '/song/url',
+      query: {'id': '${song.id}', 'br': '128000'},
+      useLegacyBase: useLegacyBase,
+    );
+    if (data == null) return null;
+    return _readSongUrl(data);
   }
 
   Future<String?> _resolveWithAlgerFallback(Song song) async {
@@ -239,7 +344,20 @@ class MusicApi {
 
   Future<List<Song>> songDetails(List<int> ids) async {
     if (ids.isEmpty) return const [];
-    final data = await _get('/song/detail', query: {'ids': ids.join(',')});
+    final data = await _getWithFallback(
+      _usesDirectNetease
+          ? [
+              _ApiEndpoint('/song/detail/', query: {'ids': jsonEncode(ids)}),
+              _ApiEndpoint(
+                '/song/detail',
+                query: {'ids': ids.join(',')},
+                useLegacyBase: true,
+              ),
+            ]
+          : [
+              _ApiEndpoint('/song/detail', query: {'ids': ids.join(',')}),
+            ],
+    );
     return ((data['songs'] as List?) ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(Song.fromJson)
@@ -248,35 +366,105 @@ class MusicApi {
   }
 
   Future<List<LyricLine>> lyrics(int id) async {
-    final data = await _get('/lyric/new', query: {'id': '$id'});
+    final data = await _getWithFallback(
+      _usesDirectNetease
+          ? [
+              _ApiEndpoint(
+                '/song/lyric',
+                query: {'id': '$id', 'lv': '-1', 'kv': '-1', 'tv': '-1'},
+              ),
+              _ApiEndpoint('/lyric/new',
+                  query: {'id': '$id'}, useLegacyBase: true),
+            ]
+          : [
+              _ApiEndpoint('/lyric/new', query: {'id': '$id'}),
+            ],
+    );
     final raw = ((data['lrc'] as Map?)?['lyric'] ?? '').toString();
     return parseLrc(raw);
   }
 
   Future<List<Song>> playlistSongs(int id) async {
-    final data = await _get('/playlist/detail', query: {'id': '$id'});
-    final trackIds =
-        (((data['playlist'] as Map?)?['trackIds'] as List?) ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map((item) => int.tryParse('${item['id']}') ?? 0)
-            .where((id) => id != 0)
-            .take(60)
-            .toList();
+    final data = await _getWithFallback(
+      _usesDirectNetease
+          ? [
+              _ApiEndpoint('/playlist/detail', query: {'id': '$id'}),
+              _ApiEndpoint(
+                '/playlist/detail',
+                query: {'id': '$id'},
+                useLegacyBase: true,
+              ),
+            ]
+          : [
+              _ApiEndpoint('/playlist/detail', query: {'id': '$id'}),
+            ],
+    );
+    final playlist = (data['playlist'] as Map?) ?? (data['result'] as Map?);
+    final tracks = (playlist?['tracks'] as List?) ?? const [];
+    if (tracks.isNotEmpty) {
+      return tracks
+          .whereType<Map<String, dynamic>>()
+          .take(60)
+          .map(Song.fromJson)
+          .where((song) => song.id != 0)
+          .toList();
+    }
+    final trackIds = ((playlist?['trackIds'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map((item) => int.tryParse('${item['id']}') ?? 0)
+        .where((id) => id != 0)
+        .take(60)
+        .toList();
     return songDetails(trackIds);
+  }
+
+  Future<Map<String, dynamic>> _getWithFallback(
+    List<_ApiEndpoint> endpoints, {
+    bool allowCacheFallback = false,
+  }) async {
+    Object? lastError;
+    for (final endpoint in endpoints) {
+      try {
+        return await _get(
+          endpoint.path,
+          query: endpoint.query,
+          allowCacheFallback: allowCacheFallback,
+          useLegacyBase: endpoint.useLegacyBase,
+        );
+      } on Object catch (error) {
+        lastError = error;
+      }
+    }
+    if (lastError is MusicApiException) throw lastError;
+    throw MusicApiException('$lastError');
+  }
+
+  Future<Map<String, dynamic>?> _getOrNull(
+    String path, {
+    Map<String, String>? query,
+    bool useLegacyBase = false,
+  }) async {
+    try {
+      return await _get(path, query: query, useLegacyBase: useLegacyBase);
+    } on Object catch (_) {
+      return null;
+    }
   }
 
   Future<Map<String, dynamic>> _get(
     String path, {
     Map<String, String>? query,
     bool allowCacheFallback = false,
+    bool useLegacyBase = false,
   }) async {
-    final cacheKey = _cacheKey(path, query);
+    final cacheKey = _cacheKey(path, query, useLegacyBase: useLegacyBase);
     final cached = _cache[cacheKey];
     if (allowCacheFallback && cached != null && cached.isFresh(_cacheTtl)) {
       return cached.data;
     }
 
-    final uri = Uri.parse('$_baseUrl$path').replace(queryParameters: {
+    final baseUrl = useLegacyBase ? legacyBaseUrl : _baseUrl;
+    final uri = Uri.parse('$baseUrl$path').replace(queryParameters: {
       ...?query,
       'timestamp': DateTime.now().millisecondsSinceEpoch.toString(),
     });
@@ -324,11 +512,16 @@ class MusicApi {
     return statusCode == 408 || statusCode == 429 || statusCode >= 500;
   }
 
-  String _cacheKey(String path, Map<String, String>? query) {
+  String _cacheKey(
+    String path,
+    Map<String, String>? query, {
+    required bool useLegacyBase,
+  }) {
     final sortedQuery = Map.fromEntries(
         (query ?? const <String, String>{}).entries.toList()
           ..sort((a, b) => a.key.compareTo(b.key)));
     return Uri(
+            host: useLegacyBase ? 'legacy' : 'primary',
             path: path,
             queryParameters: sortedQuery.isEmpty ? null : sortedQuery)
         .toString();
@@ -359,13 +552,31 @@ class MusicApi {
     return _normalizeNonEmptyBaseUrl(trimmed);
   }
 
+  static String normalizeBaseUrl(String value) => _normalizeBaseUrl(value);
+
+  static String normalizeOptionalBaseUrl(String value) =>
+      _normalizeOptionalBaseUrl(value);
+
   static String _normalizeNonEmptyBaseUrl(String trimmed) {
     final withoutTrailingSlash = trimmed.endsWith('/')
         ? trimmed.substring(0, trimmed.length - 1)
         : trimmed;
-    return withoutTrailingSlash.endsWith('/api.php')
+    final normalized = withoutTrailingSlash.endsWith('/api.php')
         ? withoutTrailingSlash.substring(
             0, withoutTrailingSlash.length - '/api.php'.length)
         : withoutTrailingSlash;
+    return normalized == legacyBaseUrl ? defaultBaseUrl : normalized;
   }
+}
+
+class _ApiEndpoint {
+  const _ApiEndpoint(
+    this.path, {
+    this.query,
+    this.useLegacyBase = false,
+  });
+
+  final String path;
+  final Map<String, String>? query;
+  final bool useLegacyBase;
 }

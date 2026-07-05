@@ -11,20 +11,29 @@ class Song {
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
-    final nestedSong = json['song'] is Map<String, dynamic> ? json['song'] as Map<String, dynamic> : null;
+    final nestedSong = json['song'] is Map<String, dynamic>
+        ? json['song'] as Map<String, dynamic>
+        : null;
     final albumJson = json['al'] ?? json['album'] ?? nestedSong?['album'] ?? {};
-    final artistsJson = json['ar'] ?? json['artists'] ?? nestedSong?['artists'] ?? [];
+    final artistsJson =
+        json['ar'] ?? json['artists'] ?? nestedSong?['artists'] ?? [];
     final songJson = nestedSong ?? json;
+    final coverUrl =
+        json['picUrl'] ?? (albumJson is Map ? albumJson['picUrl'] : null);
 
     return Song(
       id: _readInt(json['id'] ?? songJson['id']),
       name: '${json['name'] ?? songJson['name'] ?? ''}',
       artists: artistsJson is List
-          ? artistsJson.whereType<Map<String, dynamic>>().map(Artist.fromJson).toList()
+          ? artistsJson
+              .whereType<Map<String, dynamic>>()
+              .map(Artist.fromJson)
+              .toList()
           : const [],
       album: '${albumJson is Map ? albumJson['name'] ?? '' : ''}',
-      coverUrl: '${json['picUrl'] ?? (albumJson is Map ? albumJson['picUrl'] ?? '' : '')}',
-      durationMs: _readNullableInt(json['dt'] ?? json['duration'] ?? songJson['duration']),
+      coverUrl: '${coverUrl ?? ''}',
+      durationMs: _readNullableInt(
+          json['dt'] ?? json['duration'] ?? songJson['duration']),
     );
   }
 
@@ -48,6 +57,9 @@ class Song {
 
   String get artistText {
     if (artists.isEmpty) return 'Unknown artist';
-    return artists.map((artist) => artist.name).where((name) => name.isNotEmpty).join(' / ');
+    return artists
+        .map((artist) => artist.name)
+        .where((name) => name.isNotEmpty)
+        .join(' / ');
   }
 }

@@ -21,11 +21,13 @@ class AppState extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    _apiBaseUrl = prefs.getString(_apiBaseUrlKey) ?? MusicApi.defaultBaseUrl;
+    _apiBaseUrl = MusicApi.normalizeBaseUrl(
+      prefs.getString(_apiBaseUrlKey) ?? MusicApi.defaultBaseUrl,
+    );
     final storedResolver = prefs.getString(_resolverBaseUrlKey);
     _resolverBaseUrl = storedResolver == null || storedResolver.trim().isEmpty
         ? _defaultResolverBaseUrl
-        : storedResolver;
+        : MusicApi.normalizeOptionalBaseUrl(storedResolver);
     api.baseUrl = _apiBaseUrl;
     api.resolverBaseUrl = _resolverBaseUrl;
     final storedFavorites = prefs.getStringList('favorites') ?? const [];
@@ -38,7 +40,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> setApiBaseUrl(String value) async {
-    final trimmed = value.trim();
+    final trimmed = MusicApi.normalizeBaseUrl(value);
     if (trimmed.isEmpty) return;
     _apiBaseUrl = trimmed;
     api.baseUrl = trimmed;
@@ -48,7 +50,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> setResolverBaseUrl(String value) async {
-    final trimmed = value.trim();
+    final trimmed = MusicApi.normalizeOptionalBaseUrl(value);
     _resolverBaseUrl = trimmed;
     api.resolverBaseUrl = trimmed;
     final prefs = await SharedPreferences.getInstance();

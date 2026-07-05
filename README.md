@@ -7,7 +7,7 @@ MuseHub is a Flutter mobile rebuild inspired by [AlgerMusicPlayer](https://githu
 - Song detail, stream URL, lyric, playlist detail, and album detail API wrappers
 - Queue-based playback with `just_audio`
 - Mini player, full-screen player, bottom navigation, library favorites, and settings
-- Configurable API base URL for self-hosted Netease Cloud Music API-compatible services
+- Configurable API base URL with direct Netease endpoints and legacy API fallback
 
 ## Prerequisites
 
@@ -27,7 +27,11 @@ flutter run -d chrome
 
 ## API Server
 
-The app defaults to `https://netease-cloud-music-api-five-roan-88.vercel.app`. Open **Settings** in the app to point it at your own Netease Cloud Music API-compatible server. The Flutter code normalizes trailing slashes and the old `/api.php` suffix, so these forms are accepted:
+The app defaults to `https://music.163.com/api` and falls back to the legacy
+Vercel-hosted Netease Cloud Music API for endpoints that still need that
+compatibility layer. Open **Settings** in the app to point it at your own API
+server if needed. The Flutter code normalizes trailing slashes and the old
+`/api.php` suffix, so these forms are accepted:
 
 ```txt
 https://your-host.example
@@ -49,6 +53,9 @@ cd tools/alger_resolver
 npm install
 npm start
 ```
+
+The resolver listens on `0.0.0.0:30489` by default, so Android emulators and
+physical phones on the same Wi-Fi can reach the Mac that runs it.
 
 Then set **Settings -> Alger fallback resolver URL**:
 
