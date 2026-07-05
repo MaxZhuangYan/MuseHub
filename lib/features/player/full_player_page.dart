@@ -63,7 +63,9 @@ class FullPlayerPage extends StatelessWidget {
           IconButton(
             tooltip: appState.isFavorite(song) ? 'Remove favorite' : 'Favorite',
             icon: Icon(
-              appState.isFavorite(song) ? Icons.favorite : Icons.favorite_border,
+              appState.isFavorite(song)
+                  ? Icons.favorite
+                  : Icons.favorite_border,
               color: appState.isFavorite(song)
                   ? scheme.primaryContainer
                   : scheme.onSurfaceVariant,
@@ -194,9 +196,11 @@ class FullPlayerPage extends StatelessWidget {
                     Text(
                       player.error!,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: scheme.error, fontSize: 13),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: scheme.error, fontSize: 12),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                   ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -403,7 +407,11 @@ class _PlayPauseButton extends StatelessWidget {
           ],
         ),
         child: Icon(
-          player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          player.error != null
+              ? Icons.replay_rounded
+              : player.isPlaying
+                  ? Icons.pause_rounded
+                  : Icons.play_arrow_rounded,
           color: scheme.onPrimaryContainer,
           size: 38,
         ),

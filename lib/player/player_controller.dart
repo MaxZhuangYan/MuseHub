@@ -43,6 +43,7 @@ class PlayerController extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   PlaybackRepeatMode _repeatMode = PlaybackRepeatMode.all;
+  final Set<int> _unplayableIds = {};
 
   List<Song> get queue => List.unmodifiable(_queue);
   Song? get current => _current;
@@ -72,20 +73,32 @@ class PlayerController extends ChangeNotifier {
 
     _current = song;
     _lyrics = [];
+    _position = Duration.zero;
+    _duration = song.durationMs == null
+        ? Duration.zero
+        : Duration(milliseconds: song.durationMs!);
+    _isPlaying = false;
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
+      await _audio.stop();
       final url = await _api.songUrl(song.id);
       if (url == null) {
-        throw const MusicApiException('This track is not playable here.');
+        throw const MusicApiException(
+          'This track is unavailable from the current music source.',
+        );
       }
       await _audio.setUrl(url).timeout(const Duration(seconds: 12));
       await _audio.play();
       _loadLyrics(song.id);
     } catch (error) {
+      await _audio.stop();
+      _position = Duration.zero;
+      _isPlaying = false;
       _error = error.toString();
+      _unplayableIds.add(song.id);
       if (_queue.length > 1) {
         Future<void>.delayed(const Duration(milliseconds: 900), () {
           if (_current?.id == song.id && _error != null) next();
@@ -99,6 +112,12 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> toggle() async {
     if (_current == null) return;
+    if (_error != null) {
+      final song = _current!;
+      _unplayableIds.remove(song.id);
+      await playSong(song, queue: _queue);
+      return;
+    }
     if (_audio.playing) {
       await _audio.pause();
     } else {
@@ -118,12 +137,12 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> next() async {
-    final song = _nextSong();
+    final song = _nextSong(skipUnplayable: true);
     if (song != null) await playSong(song);
   }
 
   Future<void> previous() async {
-    final song = _previousSong();
+    final song = _previousSong(skipUnplayable: true);
     if (song != null) await playSong(song);
   }
 
@@ -136,20 +155,44 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Song? _nextSong() {
+  Song? _nextSong({bool skipUnplayable = false}) {
     if (_current == null || _queue.isEmpty) return _current;
-    if (_repeatMode == PlaybackRepeatMode.one) return _current;
+    if (_repeatMode == PlaybackRepeatMode.one &&
+        (!skipUnplayable || !_unplayableIds.contains(_current!.id))) {
+      return _current;
+    }
     final index = _queue.indexWhere((song) => song.id == _current!.id);
     if (index == -1) return _queue.first;
-    if (index + 1 < _queue.length) return _queue[index + 1];
-    return _repeatMode == PlaybackRepeatMode.all ? _queue.first : null;
+    for (var i = index + 1; i < _queue.length; i++) {
+      if (!skipUnplayable || !_unplayableIds.contains(_queue[i].id)) {
+        return _queue[i];
+      }
+    }
+    if (_repeatMode != PlaybackRepeatMode.all) return null;
+    for (var i = 0; i <= index; i++) {
+      if (!skipUnplayable || !_unplayableIds.contains(_queue[i].id)) {
+        return _queue[i];
+      }
+    }
+    return null;
   }
 
-  Song? _previousSong() {
+  Song? _previousSong({bool skipUnplayable = false}) {
     if (_current == null || _queue.isEmpty) return _current;
     final index = _queue.indexWhere((song) => song.id == _current!.id);
-    if (index > 0) return _queue[index - 1];
-    return _repeatMode == PlaybackRepeatMode.all ? _queue.last : null;
+    if (index == -1) return _queue.last;
+    for (var i = index - 1; i >= 0; i--) {
+      if (!skipUnplayable || !_unplayableIds.contains(_queue[i].id)) {
+        return _queue[i];
+      }
+    }
+    if (_repeatMode != PlaybackRepeatMode.all) return null;
+    for (var i = _queue.length - 1; i >= index; i--) {
+      if (!skipUnplayable || !_unplayableIds.contains(_queue[i].id)) {
+        return _queue[i];
+      }
+    }
+    return null;
   }
 
   @override
