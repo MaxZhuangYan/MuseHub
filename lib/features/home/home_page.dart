@@ -8,6 +8,7 @@ import '../../core/services/music_api.dart';
 import '../../core/widgets/cover_art.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/song_tile.dart';
+import '../../l10n/app_strings.dart';
 import '../../player/player_controller.dart';
 
 class HomePage extends StatefulWidget {
@@ -36,10 +37,12 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.paddingOf(context).top;
+    final strings = AppStrings.of(context);
     return FutureBuilder<HomeSnapshot>(
       future: _snapshot,
       builder: (context, state) {
-        if (state.connectionState == ConnectionState.waiting && !state.hasData) {
+        if (state.connectionState == ConnectionState.waiting &&
+            !state.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (state.hasError) {
@@ -57,7 +60,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 20),
               _HeroBanners(banners: data.banners),
               SectionHeader(
-                title: 'Made For You',
+                title: strings.madeForYou,
                 action: FilledButton.tonalIcon(
                   onPressed: data.playlists.isEmpty
                       ? null
@@ -72,11 +75,11 @@ class _HomePageState extends State<HomePage> {
                           }
                         },
                   icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                  label: const Text('Play All'),
+                  label: Text(strings.playAll),
                 ),
               ),
               _PlaylistGrid(playlists: data.playlists.take(4).toList()),
-              const SectionHeader(title: 'New Releases'),
+              SectionHeader(title: strings.newReleases),
               for (final song in data.newSongs.take(8))
                 SongTile(song: song, queue: data.newSongs),
               const SizedBox(height: 8),
@@ -102,7 +105,7 @@ class _HomeHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Good music,',
+                  AppStrings.of(context).goodMusic,
                   style: GoogleFonts.hankenGrotesk(
                     fontSize: 13,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -110,7 +113,7 @@ class _HomeHeader extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'MuseHub',
+                  AppStrings.of(context).appName,
                   style: GoogleFonts.sora(
                     fontSize: 26,
                     fontWeight: FontWeight.w700,
@@ -136,6 +139,7 @@ class _HeroBanners extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
     final visible = banners.take(5).toList();
 
     if (visible.isEmpty) {
@@ -146,13 +150,12 @@ class _HeroBanners extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             color: scheme.surfaceContainerHigh,
-            border:
-                Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
           ),
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.all(20),
           child: Text(
-            'MuseHub',
+            strings.appName,
             style: GoogleFonts.sora(
               fontSize: 28,
               fontWeight: FontWeight.w700,
@@ -169,7 +172,7 @@ class _HeroBanners extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
           child: Text(
-            'Trending Now',
+            strings.trendingNow,
             style: GoogleFonts.sora(
               fontSize: 22,
               fontWeight: FontWeight.w700,
@@ -205,6 +208,7 @@ class _BannerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Stack(
@@ -232,7 +236,7 @@ class _BannerCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'FEATURED PLAYLIST',
+                  strings.featuredPlaylist,
                   style: GoogleFonts.hankenGrotesk(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -242,7 +246,9 @@ class _BannerCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  banner.title == 'Featured' ? 'Neon Nights Vol. 4' : banner.title,
+                  banner.title == 'Featured'
+                      ? strings.fallbackBannerTitle
+                      : banner.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.sora(
@@ -255,7 +261,7 @@ class _BannerCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'A cinematic mix for late night listening.',
+                  strings.cinematicMix,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.hankenGrotesk(
@@ -312,6 +318,7 @@ class _PlaylistCardState extends State<_PlaylistCard> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: _loading
@@ -369,7 +376,7 @@ class _PlaylistCardState extends State<_PlaylistCard> {
           ),
           const SizedBox(height: 2),
           Text(
-            _formatPlayCount(widget.playlist.playCount),
+            strings.playCount(widget.playlist.playCount),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.hankenGrotesk(
@@ -380,14 +387,6 @@ class _PlaylistCardState extends State<_PlaylistCard> {
         ],
       ),
     );
-  }
-
-  String _formatPlayCount(int count) {
-    if (count >= 100000000) {
-      return '${(count / 100000000).toStringAsFixed(1)}B plays';
-    }
-    if (count >= 10000) return '${(count / 10000).toStringAsFixed(1)}W plays';
-    return '$count plays';
   }
 }
 
@@ -410,7 +409,7 @@ class _ErrorState extends StatelessWidget {
             FilledButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(AppStrings.of(context).retry),
             ),
           ],
         ),

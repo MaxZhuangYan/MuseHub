@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
 import '../../core/services/music_api.dart';
+import '../../l10n/app_strings.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -33,11 +34,12 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
+    final strings = AppStrings.of(context);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
       children: [
         Text(
-          'Settings',
+          strings.settings,
           style: Theme.of(context)
               .textTheme
               .headlineSmall
@@ -46,21 +48,21 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 20),
         TextField(
           controller: _apiController,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            labelText: 'API base URL',
-            prefixIcon: Icon(Icons.dns),
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            labelText: strings.apiBaseUrl,
+            prefixIcon: const Icon(Icons.dns),
           ),
           keyboardType: TextInputType.url,
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _resolverController,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            labelText: 'Alger fallback resolver URL',
-            helperText: 'Optional. Example: http://127.0.0.1:30489',
-            prefixIcon: Icon(Icons.hub),
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            labelText: strings.resolverUrl,
+            helperText: strings.resolverHelper,
+            prefixIcon: const Icon(Icons.hub),
           ),
           keyboardType: TextInputType.url,
         ),
@@ -73,12 +75,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 await appState.setResolverBaseUrl(_resolverController.text);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Music services updated')),
+                    SnackBar(content: Text(strings.musicServicesUpdated)),
                   );
                 }
               },
               icon: const Icon(Icons.save),
-              label: const Text('Save'),
+              label: Text(strings.save),
             ),
             const SizedBox(width: 8),
             TextButton(
@@ -86,7 +88,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 _apiController.text = MusicApi.defaultBaseUrl;
                 _resolverController.text = MusicApi.defaultResolverBaseUrl;
               },
-              child: const Text('Reset'),
+              child: Text(strings.reset),
             ),
           ],
         ),
@@ -94,15 +96,14 @@ class _SettingsPageState extends State<SettingsPage> {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.favorite),
-          title: const Text('Favorite songs'),
-          subtitle: Text('${appState.favoriteIds.length} saved locally'),
+          title: Text(strings.favoriteSongs),
+          subtitle: Text(strings.savedLocally(appState.favoriteIds.length)),
         ),
-        const ListTile(
+        ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.phone_android),
-          title: Text('Mobile rebuild'),
-          subtitle: Text(
-              'Flutter shell inspired by AlgerMusicPlayer desktop workflows'),
+          leading: const Icon(Icons.phone_android),
+          title: Text(strings.mobileRebuild),
+          subtitle: Text(strings.mobileRebuildBody),
         ),
       ],
     );

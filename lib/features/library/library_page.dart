@@ -6,6 +6,7 @@ import '../../core/app_state.dart';
 import '../../core/models/song.dart';
 import '../../core/services/music_api.dart';
 import '../../core/widgets/song_tile.dart';
+import '../../l10n/app_strings.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -28,6 +29,7 @@ class _LibraryPageState extends State<LibraryPage> {
   Widget build(BuildContext context) {
     final topPad = MediaQuery.paddingOf(context).top;
     final ids = context.watch<AppState>().favoriteIds;
+    final strings = AppStrings.of(context);
 
     if (ids.isEmpty) {
       return SafeArea(
@@ -44,7 +46,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Your favorites',
+                  strings.yourFavorites,
                   style: GoogleFonts.sora(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -53,7 +55,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Favorite songs from Home, Search, or the player will appear here.',
+                  strings.favoritesEmpty,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.hankenGrotesk(
                     fontSize: 14,
@@ -81,7 +83,7 @@ class _LibraryPageState extends State<LibraryPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
               child: Text(
-                'Favorites',
+                strings.favorites,
                 style: GoogleFonts.sora(
                   fontSize: 26,
                   fontWeight: FontWeight.w700,

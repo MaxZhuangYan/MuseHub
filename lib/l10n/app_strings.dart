@@ -1,0 +1,260 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+
+class AppStrings {
+  const AppStrings(this.locale);
+
+  final Locale locale;
+
+  static const supportedLocales = [
+    Locale('en'),
+    Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hans'),
+    Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+  ];
+
+  static const delegate = _AppStringsDelegate();
+
+  static AppStrings of(BuildContext context) {
+    return Localizations.of<AppStrings>(context, AppStrings)!;
+  }
+
+  bool get _isTraditional {
+    final scriptCode = locale.scriptCode?.toLowerCase();
+    final countryCode = locale.countryCode?.toLowerCase();
+    return scriptCode == 'hant' ||
+        countryCode == 'tw' ||
+        countryCode == 'hk' ||
+        countryCode == 'mo';
+  }
+
+  Map<String, String> get _strings {
+    if (locale.languageCode == 'zh') {
+      return _isTraditional ? _zhHant : _zhHans;
+    }
+    return _en;
+  }
+
+  String _t(String key) => _strings[key] ?? _en[key] ?? key;
+
+  String get appName => _t('appName');
+  String get home => _t('home');
+  String get search => _t('search');
+  String get library => _t('library');
+  String get settings => _t('settings');
+  String get play => _t('play');
+  String get pause => _t('pause');
+  String get next => _t('next');
+  String get previous => _t('previous');
+  String get retry => _t('retry');
+  String get save => _t('save');
+  String get reset => _t('reset');
+  String get favorite => _t('favorite');
+  String get removeFavorite => _t('removeFavorite');
+  String get moreOptions => _t('moreOptions');
+  String get nothingPlaying => _t('nothingPlaying');
+  String get nowPlaying => _t('nowPlaying');
+  String get repeat => _t('repeat');
+  String get queue => _t('queue');
+  String get lyricsUnavailable => _t('lyricsUnavailable');
+  String get trackUnavailable => _t('trackUnavailable');
+  String get madeForYou => _t('madeForYou');
+  String get playAll => _t('playAll');
+  String get newReleases => _t('newReleases');
+  String get goodMusic => _t('goodMusic');
+  String get trendingNow => _t('trendingNow');
+  String get featuredPlaylist => _t('featuredPlaylist');
+  String get fallbackBannerTitle => _t('fallbackBannerTitle');
+  String get cinematicMix => _t('cinematicMix');
+  String get searchHint => _t('searchHint');
+  String get searchForMusic => _t('searchForMusic');
+  String get searchEmptyBody => _t('searchEmptyBody');
+  String get apiBaseUrl => _t('apiBaseUrl');
+  String get resolverUrl => _t('resolverUrl');
+  String get resolverHelper => _t('resolverHelper');
+  String get musicServicesUpdated => _t('musicServicesUpdated');
+  String get favoriteSongs => _t('favoriteSongs');
+  String savedLocally(int count) =>
+      _t('savedLocally').replaceAll('{count}', '$count');
+  String get mobileRebuild => _t('mobileRebuild');
+  String get mobileRebuildBody => _t('mobileRebuildBody');
+  String get yourFavorites => _t('yourFavorites');
+  String get favoritesEmpty => _t('favoritesEmpty');
+  String get favorites => _t('favorites');
+  String playCount(num count) {
+    if (count >= 100000000) {
+      return _t('hundredMillionPlays')
+          .replaceAll('{count}', (count / 100000000).toStringAsFixed(1));
+    }
+    if (count >= 10000) {
+      return _t('tenThousandPlays')
+          .replaceAll('{count}', (count / 10000).toStringAsFixed(1));
+    }
+    return _t('plainPlays').replaceAll('{count}', '$count');
+  }
+}
+
+class _AppStringsDelegate extends LocalizationsDelegate<AppStrings> {
+  const _AppStringsDelegate();
+
+  @override
+  bool isSupported(Locale locale) =>
+      locale.languageCode == 'en' || locale.languageCode == 'zh';
+
+  @override
+  Future<AppStrings> load(Locale locale) {
+    return SynchronousFuture<AppStrings>(AppStrings(locale));
+  }
+
+  @override
+  bool shouldReload(_AppStringsDelegate old) => false;
+}
+
+const _en = {
+  'appName': 'MuseHub',
+  'home': 'Home',
+  'search': 'Search',
+  'library': 'Library',
+  'settings': 'Settings',
+  'play': 'Play',
+  'pause': 'Pause',
+  'next': 'Next',
+  'previous': 'Previous',
+  'retry': 'Retry',
+  'save': 'Save',
+  'reset': 'Reset',
+  'favorite': 'Favorite',
+  'removeFavorite': 'Remove favorite',
+  'moreOptions': 'More options',
+  'nothingPlaying': 'Nothing is playing',
+  'nowPlaying': 'NOW PLAYING',
+  'repeat': 'Repeat',
+  'queue': 'Queue',
+  'lyricsUnavailable': 'Lyrics will appear when available.',
+  'trackUnavailable':
+      'This track is unavailable from the current music source.',
+  'madeForYou': 'Made For You',
+  'playAll': 'Play All',
+  'newReleases': 'New Releases',
+  'goodMusic': 'Good music,',
+  'trendingNow': 'Trending Now',
+  'featuredPlaylist': 'FEATURED PLAYLIST',
+  'fallbackBannerTitle': 'Neon Nights Vol. 4',
+  'cinematicMix': 'A cinematic mix for late night listening.',
+  'searchHint': 'Songs, artists, albums...',
+  'searchForMusic': 'Search for music',
+  'searchEmptyBody': 'Find songs, artists, and albums to build your queue.',
+  'apiBaseUrl': 'API base URL',
+  'resolverUrl': 'Alger fallback resolver URL',
+  'resolverHelper': 'Optional. Example: http://127.0.0.1:30489',
+  'musicServicesUpdated': 'Music services updated',
+  'favoriteSongs': 'Favorite songs',
+  'savedLocally': '{count} saved locally',
+  'mobileRebuild': 'Mobile rebuild',
+  'mobileRebuildBody':
+      'Flutter shell inspired by AlgerMusicPlayer desktop workflows',
+  'yourFavorites': 'Your favorites',
+  'favoritesEmpty':
+      'Favorite songs from Home, Search, or the player will appear here.',
+  'favorites': 'Favorites',
+  'hundredMillionPlays': '{count}B plays',
+  'tenThousandPlays': '{count}W plays',
+  'plainPlays': '{count} plays',
+};
+
+const _zhHans = {
+  'appName': 'MuseHub',
+  'home': '首页',
+  'search': '搜索',
+  'library': '资料库',
+  'settings': '设置',
+  'play': '播放',
+  'pause': '暂停',
+  'next': '下一首',
+  'previous': '上一首',
+  'retry': '重试',
+  'save': '保存',
+  'reset': '重置',
+  'favorite': '收藏',
+  'removeFavorite': '取消收藏',
+  'moreOptions': '更多选项',
+  'nothingPlaying': '当前没有播放内容',
+  'nowPlaying': '正在播放',
+  'repeat': '循环',
+  'queue': '播放队列',
+  'lyricsUnavailable': '有可用歌词时会显示在这里。',
+  'trackUnavailable': '当前音乐源暂时无法播放这首歌。',
+  'madeForYou': '为你推荐',
+  'playAll': '全部播放',
+  'newReleases': '新歌速递',
+  'goodMusic': '好音乐，',
+  'trendingNow': '正在流行',
+  'featuredPlaylist': '精选歌单',
+  'fallbackBannerTitle': '霓虹夜色 Vol. 4',
+  'cinematicMix': '适合深夜聆听的电影感歌单。',
+  'searchHint': '歌曲、艺人、专辑...',
+  'searchForMusic': '搜索音乐',
+  'searchEmptyBody': '查找歌曲、艺人和专辑，加入你的播放队列。',
+  'apiBaseUrl': 'API 服务地址',
+  'resolverUrl': 'Alger 备用解析服务地址',
+  'resolverHelper': '可选。例如：http://127.0.0.1:30489',
+  'musicServicesUpdated': '音乐服务已更新',
+  'favoriteSongs': '收藏歌曲',
+  'savedLocally': '本地已保存 {count} 首',
+  'mobileRebuild': '移动版重构',
+  'mobileRebuildBody': '受 AlgerMusicPlayer 桌面工作流启发的 Flutter 外壳',
+  'yourFavorites': '你的收藏',
+  'favoritesEmpty': '在首页、搜索或播放器里收藏的歌曲会显示在这里。',
+  'favorites': '收藏',
+  'hundredMillionPlays': '{count} 亿次播放',
+  'tenThousandPlays': '{count} 万次播放',
+  'plainPlays': '{count} 次播放',
+};
+
+const _zhHant = {
+  'appName': 'MuseHub',
+  'home': '首頁',
+  'search': '搜尋',
+  'library': '資料庫',
+  'settings': '設定',
+  'play': '播放',
+  'pause': '暫停',
+  'next': '下一首',
+  'previous': '上一首',
+  'retry': '重試',
+  'save': '儲存',
+  'reset': '重設',
+  'favorite': '收藏',
+  'removeFavorite': '取消收藏',
+  'moreOptions': '更多選項',
+  'nothingPlaying': '目前沒有播放內容',
+  'nowPlaying': '正在播放',
+  'repeat': '循環',
+  'queue': '播放佇列',
+  'lyricsUnavailable': '有可用歌詞時會顯示在這裡。',
+  'trackUnavailable': '目前音樂來源暫時無法播放這首歌。',
+  'madeForYou': '為你推薦',
+  'playAll': '全部播放',
+  'newReleases': '新歌速遞',
+  'goodMusic': '好音樂，',
+  'trendingNow': '正在流行',
+  'featuredPlaylist': '精選歌單',
+  'fallbackBannerTitle': '霓虹夜色 Vol. 4',
+  'cinematicMix': '適合深夜聆聽的電影感歌單。',
+  'searchHint': '歌曲、藝人、專輯...',
+  'searchForMusic': '搜尋音樂',
+  'searchEmptyBody': '查找歌曲、藝人和專輯，加入你的播放佇列。',
+  'apiBaseUrl': 'API 服務位址',
+  'resolverUrl': 'Alger 備用解析服務位址',
+  'resolverHelper': '可選。例如：http://127.0.0.1:30489',
+  'musicServicesUpdated': '音樂服務已更新',
+  'favoriteSongs': '收藏歌曲',
+  'savedLocally': '本機已儲存 {count} 首',
+  'mobileRebuild': '行動版重構',
+  'mobileRebuildBody': '受 AlgerMusicPlayer 桌面工作流程啟發的 Flutter 外殼',
+  'yourFavorites': '你的收藏',
+  'favoritesEmpty': '在首頁、搜尋或播放器裡收藏的歌曲會顯示在這裡。',
+  'favorites': '收藏',
+  'hundredMillionPlays': '{count} 億次播放',
+  'tenThousandPlays': '{count} 萬次播放',
+  'plainPlays': '{count} 次播放',
+};

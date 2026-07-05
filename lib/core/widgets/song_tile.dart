@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../player/player_controller.dart';
 import '../app_state.dart';
+import '../../l10n/app_strings.dart';
 import '../models/song.dart';
 import 'cover_art.dart';
 
@@ -24,6 +25,7 @@ class SongTile extends StatelessWidget {
     final appState = context.watch<AppState>();
     final isFavorite = appState.isFavorite(song);
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
 
     return Material(
       color: Colors.transparent,
@@ -70,7 +72,9 @@ class SongTile extends StatelessWidget {
               ),
               trailing ??
                   IconButton(
-                    tooltip: isFavorite ? 'Remove favorite' : 'More options',
+                    tooltip: isFavorite
+                        ? strings.removeFavorite
+                        : strings.moreOptions,
                     icon: Icon(
                       isFavorite ? Icons.favorite : Icons.more_horiz,
                       color: isFavorite

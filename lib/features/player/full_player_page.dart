@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
 import '../../core/widgets/cover_art.dart';
+import '../../l10n/app_strings.dart';
 import '../../player/player_controller.dart';
 
 class FullPlayerPage extends StatelessWidget {
@@ -12,11 +13,12 @@ class FullPlayerPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final player = context.watch<PlayerController>();
+    final strings = AppStrings.of(context);
     final song = player.current;
     if (song == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: const Center(child: Text('Nothing is playing')),
+        body: Center(child: Text(strings.nothingPlaying)),
       );
     }
 
@@ -39,7 +41,7 @@ class FullPlayerPage extends StatelessWidget {
         title: Column(
           children: [
             Text(
-              'NOW PLAYING',
+              strings.nowPlaying,
               style: GoogleFonts.hankenGrotesk(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
@@ -48,7 +50,7 @@ class FullPlayerPage extends StatelessWidget {
               ),
             ),
             Text(
-              'MuseHub',
+              strings.appName,
               style: GoogleFonts.sora(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -61,7 +63,9 @@ class FullPlayerPage extends StatelessWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: appState.isFavorite(song) ? 'Remove favorite' : 'Favorite',
+            tooltip: appState.isFavorite(song)
+                ? strings.removeFavorite
+                : strings.favorite,
             icon: Icon(
               appState.isFavorite(song)
                   ? Icons.favorite
@@ -145,8 +149,8 @@ class FullPlayerPage extends StatelessWidget {
                       ),
                       IconButton(
                         tooltip: appState.isFavorite(song)
-                            ? 'Remove favorite'
-                            : 'Favorite',
+                            ? strings.removeFavorite
+                            : strings.favorite,
                         icon: Icon(
                           appState.isFavorite(song)
                               ? Icons.favorite
@@ -194,7 +198,7 @@ class FullPlayerPage extends StatelessWidget {
                   const SizedBox(height: 20),
                   if (player.error != null) ...[
                     Text(
-                      player.error!,
+                      strings.trackUnavailable,
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -206,13 +210,13 @@ class FullPlayerPage extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _ControlButton(
-                        tooltip: 'Repeat',
+                        tooltip: strings.repeat,
                         icon: _repeatIcon(player.repeatMode),
                         onPressed: player.cycleRepeatMode,
                         isActive: player.repeatMode != PlaybackRepeatMode.off,
                       ),
                       IconButton(
-                        tooltip: 'Previous',
+                        tooltip: strings.previous,
                         iconSize: 32,
                         icon: const Icon(Icons.skip_previous_rounded),
                         color: scheme.onSurface,
@@ -220,14 +224,14 @@ class FullPlayerPage extends StatelessWidget {
                       ),
                       _PlayPauseButton(player: player),
                       IconButton(
-                        tooltip: 'Next',
+                        tooltip: strings.next,
                         iconSize: 32,
                         icon: const Icon(Icons.skip_next_rounded),
                         color: scheme.onSurface,
                         onPressed: player.next,
                       ),
                       _ControlButton(
-                        tooltip: 'Queue',
+                        tooltip: strings.queue,
                         icon: Icons.queue_music_rounded,
                         onPressed: () => _showQueue(context),
                       ),
@@ -268,7 +272,7 @@ class FullPlayerPage extends StatelessWidget {
                 ),
             ] else
               Text(
-                'Lyrics will appear when available.',
+                strings.lyricsUnavailable,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.hankenGrotesk(
                   fontSize: 13,
@@ -298,6 +302,7 @@ class FullPlayerPage extends StatelessWidget {
   void _showQueue(BuildContext context) {
     final player = context.read<PlayerController>();
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -311,7 +316,7 @@ class FullPlayerPage extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Text(
-                'Queue',
+                strings.queue,
                 style: GoogleFonts.sora(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,

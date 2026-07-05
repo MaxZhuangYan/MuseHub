@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/song.dart';
 import '../../core/services/music_api.dart';
 import '../../core/widgets/song_tile.dart';
+import '../../l10n/app_strings.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -64,6 +65,7 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     final topPad = MediaQuery.paddingOf(context).top;
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
 
     return ListView(
       padding: EdgeInsets.fromLTRB(0, topPad + 8, 0, 160),
@@ -71,7 +73,7 @@ class _SearchPageState extends State<SearchPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
           child: Text(
-            'Search',
+            strings.search,
             style: GoogleFonts.sora(
               fontSize: 26,
               fontWeight: FontWeight.w700,
@@ -91,7 +93,7 @@ class _SearchPageState extends State<SearchPage> {
             decoration: InputDecoration(
               prefixIcon: Icon(Icons.search_rounded,
                   color: scheme.onSurfaceVariant, size: 20),
-              hintText: 'Songs, artists, albums…',
+              hintText: strings.searchHint,
               suffixIcon: _controller.text.isNotEmpty
                   ? IconButton(
                       icon: Icon(Icons.close_rounded,
@@ -130,8 +132,8 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                     ),
                     backgroundColor: scheme.surfaceContainerHigh,
-                    side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.06)),
+                    side:
+                        BorderSide(color: Colors.white.withValues(alpha: 0.06)),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20)),
                     onPressed: () {
@@ -145,8 +147,7 @@ class _SearchPageState extends State<SearchPage> {
         if (_loading)
           LinearProgressIndicator(
             backgroundColor: Colors.transparent,
-            valueColor:
-                AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
+            valueColor: AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
             minHeight: 2,
           ),
         if (_error != null)
@@ -154,8 +155,8 @@ class _SearchPageState extends State<SearchPage> {
             padding: const EdgeInsets.all(20),
             child: Text(
               _error!,
-              style: GoogleFonts.hankenGrotesk(
-                  fontSize: 13, color: scheme.error),
+              style:
+                  GoogleFonts.hankenGrotesk(fontSize: 13, color: scheme.error),
             ),
           ),
         if (_songs.isEmpty && !_loading)
@@ -167,7 +168,7 @@ class _SearchPageState extends State<SearchPage> {
                     size: 40, color: scheme.onSurfaceVariant),
                 const SizedBox(height: 12),
                 Text(
-                  'Search for music',
+                  strings.searchForMusic,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.sora(
                     fontSize: 16,
@@ -177,7 +178,7 @@ class _SearchPageState extends State<SearchPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Find songs, artists, and albums to build your queue.',
+                  strings.searchEmptyBody,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.hankenGrotesk(
                     fontSize: 13,

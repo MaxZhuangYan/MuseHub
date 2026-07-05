@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -13,6 +14,7 @@ import 'features/library/library_page.dart';
 import 'features/player/full_player_page.dart';
 import 'features/search/search_page.dart';
 import 'features/settings/settings_page.dart';
+import 'l10n/app_strings.dart';
 import 'player/player_controller.dart';
 
 void main() {
@@ -37,6 +39,13 @@ class MuseHubApp extends StatelessWidget {
       child: MaterialApp(
         title: 'MuseHub',
         debugShowCheckedModeBanner: false,
+        supportedLocales: AppStrings.supportedLocales,
+        localizationsDelegates: const [
+          AppStrings.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
         theme: MuseTheme.light(),
         darkTheme: MuseTheme.dark(),
         home: const AppShell(),
@@ -95,6 +104,7 @@ class _GlassNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
@@ -110,26 +120,26 @@ class _GlassNavBar extends StatelessWidget {
           child: NavigationBar(
             selectedIndex: index,
             onDestinationSelected: onChanged,
-            destinations: const [
+            destinations: [
               NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Home',
+                icon: const Icon(Icons.home_outlined),
+                selectedIcon: const Icon(Icons.home),
+                label: strings.home,
               ),
               NavigationDestination(
-                icon: Icon(Icons.search_outlined),
-                selectedIcon: Icon(Icons.search),
-                label: 'Search',
+                icon: const Icon(Icons.search_outlined),
+                selectedIcon: const Icon(Icons.search),
+                label: strings.search,
               ),
               NavigationDestination(
-                icon: Icon(Icons.library_music_outlined),
-                selectedIcon: Icon(Icons.library_music),
-                label: 'Library',
+                icon: const Icon(Icons.library_music_outlined),
+                selectedIcon: const Icon(Icons.library_music),
+                label: strings.library,
               ),
               NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: 'Settings',
+                icon: const Icon(Icons.settings_outlined),
+                selectedIcon: const Icon(Icons.settings),
+                label: strings.settings,
               ),
             ],
           ),
@@ -149,6 +159,7 @@ class MiniPlayer extends StatelessWidget {
     if (song == null) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
     final progress = player.duration.inMilliseconds == 0
         ? 0.0
         : (player.position.inMilliseconds / player.duration.inMilliseconds)
@@ -205,7 +216,9 @@ class MiniPlayer extends StatelessWidget {
                             ),
                             const SizedBox(height: 1),
                             Text(
-                              player.error ??
+                              (player.error == null
+                                      ? null
+                                      : strings.trackUnavailable) ??
                                   player.activeLyric?.text ??
                                   song.artistText,
                               maxLines: 1,
@@ -231,7 +244,8 @@ class MiniPlayer extends StatelessWidget {
                         )
                       else
                         IconButton(
-                          tooltip: player.isPlaying ? 'Pause' : 'Play',
+                          tooltip:
+                              player.isPlaying ? strings.pause : strings.play,
                           icon: Icon(
                             player.isPlaying
                                 ? Icons.pause_rounded
@@ -242,7 +256,7 @@ class MiniPlayer extends StatelessWidget {
                           onPressed: player.toggle,
                         ),
                       IconButton(
-                        tooltip: 'Next',
+                        tooltip: strings.next,
                         icon: Icon(
                           Icons.skip_next_rounded,
                           color: scheme.onSurfaceVariant,
