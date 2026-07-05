@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../player/player_controller.dart';
@@ -22,43 +23,65 @@ class SongTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final isFavorite = appState.isFavorite(song);
-
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      child: Material(
-        color: scheme.surfaceContainer.withValues(alpha: 0.58),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: scheme.onSurface.withValues(alpha: 0.06)),
-        ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
-          leading: CoverArt(url: song.coverUrl, size: 52, borderRadius: 10),
-          title: Text(
-            song.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style:
-                const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0),
-          ),
-          subtitle: Text(
-            song.artistText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: scheme.onSurfaceVariant, letterSpacing: 0),
-          ),
-          trailing: trailing ??
-              IconButton(
-                tooltip: isFavorite ? 'Remove favorite' : 'Favorite',
-                icon: Icon(
-                  isFavorite ? Icons.favorite : Icons.more_horiz,
-                  color: isFavorite ? scheme.primary : scheme.onSurfaceVariant,
-                ),
-                onPressed: () => appState.toggleFavorite(song),
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () =>
+            context.read<PlayerController>().playSong(song, queue: queue),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: CoverArt(url: song.coverUrl, size: 54, borderRadius: 0),
               ),
-          onTap: () =>
-              context.read<PlayerController>().playSong(song, queue: queue),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.sora(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      song.artistText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.hankenGrotesk(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              trailing ??
+                  IconButton(
+                    tooltip: isFavorite ? 'Remove favorite' : 'More options',
+                    icon: Icon(
+                      isFavorite ? Icons.favorite : Icons.more_horiz,
+                      color: isFavorite
+                          ? scheme.primaryContainer
+                          : scheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                    onPressed: () => appState.toggleFavorite(song),
+                  ),
+            ],
+          ),
         ),
       ),
     );

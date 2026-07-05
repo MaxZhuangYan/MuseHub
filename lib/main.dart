@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_state.dart';
@@ -61,42 +64,76 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('MuseHub'),
-        actions: [
-          IconButton(
-            tooltip: 'Search',
-            icon: const Icon(Icons.search),
-            onPressed: () => setState(() => _index = 1),
-          ),
-        ],
-      ),
+      extendBody: true,
       body: Stack(
         children: [
           Positioned.fill(child: _pages[_index]),
-          const Positioned(left: 0, right: 0, bottom: 0, child: MiniPlayer()),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 76 + bottomInset,
+            child: const MiniPlayer(),
+          ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
-          NavigationDestination(
-            icon: Icon(Icons.library_music_outlined),
-            selectedIcon: Icon(Icons.library_music),
-            label: 'Library',
+      bottomNavigationBar: _GlassNavBar(
+        index: _index,
+        onChanged: (i) => setState(() => _index = i),
+      ),
+    );
+  }
+}
+
+class _GlassNavBar extends StatelessWidget {
+  const _GlassNavBar({required this.index, required this.onChanged});
+
+  final int index;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: 0.72),
+            border: Border(
+              top: BorderSide(
+                color: scheme.onSurface.withValues(alpha: 0.06),
+              ),
+            ),
           ),
-          NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: 'Settings'),
-        ],
+          child: NavigationBar(
+            selectedIndex: index,
+            onDestinationSelected: onChanged,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.search_outlined),
+                selectedIcon: Icon(Icons.search),
+                label: 'Search',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.library_music_outlined),
+                selectedIcon: Icon(Icons.library_music),
+                label: 'Library',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: 'Settings',
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -112,76 +149,109 @@ class MiniPlayer extends StatelessWidget {
     if (song == null) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;
+    final progress = player.duration.inMilliseconds == 0
+        ? 0.0
+        : (player.position.inMilliseconds / player.duration.inMilliseconds)
+            .clamp(0.0, 1.0);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Material(
-        elevation: 16,
-        color: scheme.surfaceContainer.withValues(alpha: 0.9),
-        shadowColor: Colors.black.withValues(alpha: 0.45),
+        elevation: 0,
+        color: const Color(0xFF252523),
+        shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
-          side: BorderSide(color: scheme.onSurface.withValues(alpha: 0.08)),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(20),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const FullPlayerPage()),
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-            child: Row(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                CoverArt(url: song.coverUrl, size: 46, borderRadius: 23),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: Colors.white.withValues(alpha: 0.06),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
+                  minHeight: 2,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+                  child: Row(
                     children: [
-                      Text(
-                        song.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900, letterSpacing: 0),
-                      ),
-                      Text(
-                        player.error ??
-                            player.activeLyric?.text ??
-                            song.artistText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: player.error == null
-                                  ? null
-                                  : Theme.of(context).colorScheme.error,
+                      CoverArt(url: song.coverUrl, size: 42, borderRadius: 12),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              song.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.sora(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.onSurface,
+                                letterSpacing: -0.2,
+                              ),
                             ),
+                            const SizedBox(height: 1),
+                            Text(
+                              player.error ??
+                                  player.activeLyric?.text ??
+                                  song.artistText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.hankenGrotesk(
+                                fontSize: 11,
+                                color: player.error == null
+                                    ? scheme.onSurfaceVariant
+                                    : scheme.error,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (player.isLoading)
+                        const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      else
+                        IconButton(
+                          tooltip: player.isPlaying ? 'Pause' : 'Play',
+                          icon: Icon(
+                            player.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: scheme.onSurface,
+                            size: 28,
+                          ),
+                          onPressed: player.toggle,
+                        ),
+                      IconButton(
+                        tooltip: 'Next',
+                        icon: Icon(
+                          Icons.skip_next_rounded,
+                          color: scheme.onSurfaceVariant,
+                          size: 24,
+                        ),
+                        onPressed: player.next,
                       ),
                     ],
                   ),
-                ),
-                if (player.isLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2)),
-                  )
-                else
-                  IconButton(
-                    tooltip: player.isPlaying ? 'Pause' : 'Play',
-                    icon: Icon(
-                      player.isPlaying ? Icons.pause_circle : Icons.play_circle,
-                      color: scheme.primary,
-                      size: 34,
-                    ),
-                    onPressed: player.toggle,
-                  ),
-                IconButton(
-                  tooltip: 'Next',
-                  icon: const Icon(Icons.skip_next),
-                  onPressed: player.next,
                 ),
               ],
             ),

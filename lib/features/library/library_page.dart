@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
@@ -25,12 +26,44 @@ class _LibraryPageState extends State<LibraryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.paddingOf(context).top;
     final ids = context.watch<AppState>().favoriteIds;
+
     if (ids.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('Favorite songs from Home, Search, or the player will appear here.'),
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.favorite_outline,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Your favorites',
+                  style: GoogleFonts.sora(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Favorite songs from Home, Search, or the player will appear here.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -43,15 +76,21 @@ class _LibraryPageState extends State<LibraryPage> {
         }
         final songs = state.data ?? const [];
         return ListView(
-          padding: const EdgeInsets.only(bottom: 120),
+          padding: EdgeInsets.fromLTRB(0, topPad + 8, 0, 160),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
               child: Text(
                 'Favorites',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+                style: GoogleFonts.sora(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  letterSpacing: -0.8,
+                ),
               ),
             ),
+            const SizedBox(height: 8),
             for (final song in songs) SongTile(song: song, queue: songs),
           ],
         );

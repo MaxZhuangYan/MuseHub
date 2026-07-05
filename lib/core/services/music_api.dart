@@ -120,15 +120,22 @@ class MusicApi {
   }
 
   Future<String?> songUrl(int id, {String level = 'higher'}) async {
-    Map<String, dynamic>? data;
     for (final candidateLevel in [level, 'exhigh', 'standard']) {
-      data = await _get(
+      final data = await _get(
         '/song/url/v1',
         query: {'id': '$id', 'level': candidateLevel, 'encodeType': 'aac'},
       );
       final url = _readSongUrl(data);
       if (url != null) return url;
     }
+
+    final data = await _get(
+      '/song/url',
+      query: {'id': '$id', 'br': '128000'},
+    );
+    final url = _readSongUrl(data);
+    if (url != null) return url;
+
     return null;
   }
 

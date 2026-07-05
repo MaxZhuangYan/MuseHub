@@ -79,14 +79,18 @@ class PlayerController extends ChangeNotifier {
     try {
       final url = await _api.songUrl(song.id);
       if (url == null) {
-        throw const MusicApiException(
-            'No playable URL returned for this song.');
+        throw const MusicApiException('This track is not playable here.');
       }
       await _audio.setUrl(url).timeout(const Duration(seconds: 12));
       await _audio.play();
       _loadLyrics(song.id);
     } catch (error) {
       _error = error.toString();
+      if (_queue.length > 1) {
+        Future<void>.delayed(const Duration(milliseconds: 900), () {
+          if (_current?.id == song.id && _error != null) next();
+        });
+      }
     } finally {
       _isLoading = false;
       notifyListeners();

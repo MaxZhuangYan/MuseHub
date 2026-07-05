@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/home_snapshot.dart';
@@ -34,11 +35,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.paddingOf(context).top;
     return FutureBuilder<HomeSnapshot>(
       future: _snapshot,
       builder: (context, state) {
-        if (state.connectionState == ConnectionState.waiting &&
-            !state.hasData) {
+        if (state.connectionState == ConnectionState.waiting && !state.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (state.hasError) {
@@ -50,10 +51,10 @@ class _HomePageState extends State<HomePage> {
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(0, 10, 0, 124),
+            padding: EdgeInsets.fromLTRB(0, topPad + 8, 0, 160),
             children: [
-              _HomeHeader(onSearch: () {}),
-              const SizedBox(height: 14),
+              const _HomeHeader(),
+              const SizedBox(height: 20),
               _HeroBanners(banners: data.banners),
               SectionHeader(
                 title: 'Made For You',
@@ -70,14 +71,15 @@ class _HomePageState extends State<HomePage> {
                                 .playSong(songs.first, queue: songs);
                           }
                         },
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Play'),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                  label: const Text('Play All'),
                 ),
               ),
               _PlaylistGrid(playlists: data.playlists.take(4).toList()),
               const SectionHeader(title: 'New Releases'),
               for (final song in data.newSongs.take(8))
                 SongTile(song: song, queue: data.newSongs),
+              const SizedBox(height: 8),
             ],
           ),
         );
@@ -87,30 +89,38 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({required this.onSearch});
-
-  final VoidCallback onSearch;
+  const _HomeHeader();
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 8, 16, 0),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              'SoundSync',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    letterSpacing: 0,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Good music,',
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
                   ),
+                ),
+                Text(
+                  'MuseHub',
+                  style: GoogleFonts.sora(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    letterSpacing: -0.8,
+                    height: 1.1,
+                  ),
+                ),
+              ],
             ),
-          ),
-          IconButton(
-            tooltip: 'Search',
-            onPressed: onSearch,
-            icon: const Icon(Icons.search),
           ),
         ],
       ),
@@ -125,24 +135,29 @@ class _HeroBanners extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final visible = banners.take(5).toList();
+
     if (visible.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Container(
-          height: 132,
+          height: 160,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(16),
+            color: scheme.surfaceContainerHigh,
+            border:
+                Border.all(color: Colors.white.withValues(alpha: 0.06)),
           ),
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.all(20),
           child: Text(
             'MuseHub',
-            style: Theme.of(context)
-                .textTheme
-                .headlineMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
+            style: GoogleFonts.sora(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface,
+            ),
           ),
         ),
       );
@@ -152,92 +167,107 @@ class _HeroBanners extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
           child: Text(
             'Trending Now',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0,
-                ),
+            style: GoogleFonts.sora(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface,
+              letterSpacing: -0.5,
+            ),
           ),
         ),
-        const SizedBox(height: 14),
         SizedBox(
-          height: 280,
+          height: 220,
           child: PageView.builder(
-            controller: PageController(viewportFraction: 0.92),
+            controller: PageController(viewportFraction: 0.88),
             itemCount: visible.length,
             itemBuilder: (context, index) {
               final banner = visible[index];
               return Padding(
-                padding: const EdgeInsets.fromLTRB(4, 0, 8, 8),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CoverArt(url: banner.imageUrl, borderRadius: 14),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: const LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Color(0xDD131312)],
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: 18,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'FEATURED PLAYLIST',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1,
-                                ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            banner.title == 'Featured'
-                                ? 'Neon Nights Vol. 4'
-                                : banner.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0,
-                                ),
-                          ),
-                          Text(
-                            'A cinematic mix for late night listening.',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
+                child: _BannerCard(banner: banner),
               );
             },
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BannerCard extends StatelessWidget {
+  const _BannerCard({required this.banner});
+
+  final BannerItem banner;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CoverArt(url: banner.imageUrl, borderRadius: 0),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0.3, 1.0],
+                colors: [
+                  Colors.transparent,
+                  const Color(0xFF131312).withValues(alpha: 0.92),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'FEATURED PLAYLIST',
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.primaryContainer,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  banner.title == 'Featured' ? 'Neon Nights Vol. 4' : banner.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.sora(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.3,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'A cinematic mix for late night listening.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -251,7 +281,7 @@ class _PlaylistGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (playlists.isEmpty) return const SizedBox.shrink();
     return GridView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: playlists.length,
@@ -259,7 +289,7 @@ class _PlaylistGrid extends StatelessWidget {
         crossAxisCount: 2,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
-        childAspectRatio: 0.74,
+        childAspectRatio: 0.76,
       ),
       itemBuilder: (context, index) =>
           _PlaylistCard(playlist: playlists[index]),
@@ -308,16 +338,21 @@ class _PlaylistCardState extends State<_PlaylistCard> {
             children: [
               AspectRatio(
                 aspectRatio: 1,
-                child:
-                    CoverArt(url: widget.playlist.coverUrl, borderRadius: 14),
-              ),
-              if (_loading)
-                const Positioned.fill(
-                  child: ColoredBox(
-                    color: Colors.black38,
-                    child: Center(child: CircularProgressIndicator()),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CoverArt(url: widget.playlist.coverUrl, borderRadius: 0),
+                      if (_loading)
+                        const ColoredBox(
+                          color: Colors.black38,
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                    ],
                   ),
                 ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -325,18 +360,22 @@ class _PlaylistCardState extends State<_PlaylistCard> {
             widget.playlist.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: scheme.onSurface,
-                  letterSpacing: 0,
-                ),
+            style: GoogleFonts.sora(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface,
+              letterSpacing: -0.2,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             _formatPlayCount(widget.playlist.playCount),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+            style: GoogleFonts.hankenGrotesk(
+              fontSize: 11,
+              color: scheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

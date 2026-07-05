@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/song.dart';
@@ -53,50 +54,86 @@ class _SearchPageState extends State<SearchPage> {
         setState(() => _suggestions = []);
         return;
       }
-      final suggestions = await context.read<MusicApi>().searchSuggestions(keyword);
+      final suggestions =
+          await context.read<MusicApi>().searchSuggestions(keyword);
       if (mounted) setState(() => _suggestions = suggestions);
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.paddingOf(context).top;
+    final scheme = Theme.of(context).colorScheme;
+
     return ListView(
-      padding: const EdgeInsets.only(bottom: 120),
+      padding: EdgeInsets.fromLTRB(0, topPad + 8, 0, 160),
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: SearchBar(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          child: Text(
+            'Search',
+            style: GoogleFonts.sora(
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface,
+              letterSpacing: -0.8,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          child: TextField(
             controller: _controller,
-            leading: const Icon(Icons.search),
-            hintText: 'Search songs, artists, albums',
-            onChanged: _loadSuggestions,
+            style: GoogleFonts.hankenGrotesk(
+              fontSize: 14,
+              color: scheme.onSurface,
+            ),
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.search_rounded,
+                  color: scheme.onSurfaceVariant, size: 20),
+              hintText: 'Songs, artists, albums…',
+              suffixIcon: _controller.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.close_rounded,
+                          size: 18, color: scheme.onSurfaceVariant),
+                      onPressed: () {
+                        _controller.clear();
+                        setState(() {
+                          _suggestions = [];
+                          _songs = [];
+                        });
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (v) {
+              setState(() {});
+              _loadSuggestions(v);
+            },
             onSubmitted: _search,
-            trailing: [
-              if (_controller.text.isNotEmpty)
-                IconButton(
-                  tooltip: 'Clear',
-                  icon: const Icon(Icons.close),
-                  onPressed: () {
-                    _controller.clear();
-                    setState(() {
-                      _suggestions = [];
-                      _songs = [];
-                    });
-                  },
-                ),
-            ],
           ),
         ),
         if (_suggestions.isNotEmpty && _songs.isEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 for (final suggestion in _suggestions)
                   ActionChip(
-                    label: Text(suggestion),
+                    label: Text(
+                      suggestion,
+                      style: GoogleFonts.hankenGrotesk(
+                        fontSize: 12,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    backgroundColor: scheme.surfaceContainerHigh,
+                    side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.06)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
                     onPressed: () {
                       _controller.text = suggestion;
                       _search(suggestion);
@@ -105,19 +142,50 @@ class _SearchPageState extends State<SearchPage> {
               ],
             ),
           ),
-        if (_loading) const LinearProgressIndicator(),
+        if (_loading)
+          LinearProgressIndicator(
+            backgroundColor: Colors.transparent,
+            valueColor:
+                AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
+            minHeight: 2,
+          ),
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              _error!,
+              style: GoogleFonts.hankenGrotesk(
+                  fontSize: 13, color: scheme.error),
+            ),
           ),
         if (_songs.isEmpty && !_loading)
           Padding(
-            padding: const EdgeInsets.all(32),
-            child: Text(
-              'Search for music to build a mobile queue.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
+            padding: const EdgeInsets.fromLTRB(32, 40, 32, 0),
+            child: Column(
+              children: [
+                Icon(Icons.music_note_outlined,
+                    size: 40, color: scheme.onSurfaceVariant),
+                const SizedBox(height: 12),
+                Text(
+                  'Search for music',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.sora(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Find songs, artists, and albums to build your queue.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 13,
+                    color: scheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+              ],
             ),
           ),
         for (final song in _songs) SongTile(song: song, queue: _songs),

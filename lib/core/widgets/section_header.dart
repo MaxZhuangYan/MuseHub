@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
@@ -12,14 +13,21 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+      padding: const EdgeInsets.fromLTRB(20, 28, 16, 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              style: GoogleFonts.sora(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface,
+                letterSpacing: -0.4,
+              ),
             ),
           ),
           if (action != null) action!,

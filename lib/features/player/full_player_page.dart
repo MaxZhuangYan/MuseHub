@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
@@ -24,68 +25,88 @@ class FullPlayerPage extends StatelessWidget {
         ? 0.0
         : player.position.inMilliseconds / player.duration.inMilliseconds;
 
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 28),
+          color: scheme.onSurface,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Column(
           children: [
             Text(
-              'PLAYING FROM PLAYLIST',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
+              'NOW PLAYING',
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurfaceVariant,
+                letterSpacing: 1.5,
+              ),
             ),
-            const Text('MuseHub'),
+            Text(
+              'MuseHub',
+              style: GoogleFonts.sora(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurface,
+                letterSpacing: -0.2,
+              ),
+            ),
           ],
         ),
         centerTitle: true,
         actions: [
           IconButton(
             tooltip: appState.isFavorite(song) ? 'Remove favorite' : 'Favorite',
-            icon: Icon(appState.isFavorite(song)
-                ? Icons.favorite
-                : Icons.favorite_border),
+            icon: Icon(
+              appState.isFavorite(song) ? Icons.favorite : Icons.favorite_border,
+              color: appState.isFavorite(song)
+                  ? scheme.primaryContainer
+                  : scheme.onSurfaceVariant,
+            ),
             onPressed: () => appState.toggleFavorite(song),
           ),
         ],
       ),
       body: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.55, 1.0],
             colors: [
-              Color(0xFF3A0A4C),
-              Color(0xFF5C3DA4),
-              Color(0xFF7D5BC4),
+              const Color(0xFF1E1A14),
+              const Color(0xFF161513),
+              scheme.surface,
             ],
           ),
         ),
         child: ListView(
           padding: EdgeInsets.fromLTRB(
-              24, MediaQuery.paddingOf(context).top + 88, 24, 32),
+              24, MediaQuery.paddingOf(context).top + 88, 24, 48),
           children: [
             AspectRatio(
               aspectRatio: 1,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(26),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.42),
-                      blurRadius: 48,
-                      offset: const Offset(0, 24),
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 56,
+                      offset: const Offset(0, 28),
                     ),
                   ],
                 ),
-                child: CoverArt(url: song.coverUrl, borderRadius: 26),
+                child: CoverArt(url: song.coverUrl, borderRadius: 20),
               ),
             ),
-            const SizedBox(height: 24),
-            _GlassPanel(
+            const SizedBox(height: 28),
+            _InfoPanel(
               child: Column(
                 children: [
                   Row(
@@ -98,26 +119,24 @@ class FullPlayerPage extends StatelessWidget {
                               song.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineSmall
-                                  ?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0,
-                                  ),
+                              style: GoogleFonts.sora(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface,
+                                letterSpacing: -0.5,
+                                height: 1.2,
+                              ),
                             ),
+                            const SizedBox(height: 4),
                             Text(
                               song.artistText,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    color: const Color(0xFF7CF4FD),
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                              style: GoogleFonts.hankenGrotesk(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: scheme.primaryContainer,
+                              ),
                             ),
                           ],
                         ),
@@ -126,82 +145,86 @@ class FullPlayerPage extends StatelessWidget {
                         tooltip: appState.isFavorite(song)
                             ? 'Remove favorite'
                             : 'Favorite',
-                        icon: Icon(appState.isFavorite(song)
-                            ? Icons.favorite
-                            : Icons.favorite_border),
-                        color: Colors.white,
-                        iconSize: 32,
+                        icon: Icon(
+                          appState.isFavorite(song)
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: appState.isFavorite(song)
+                              ? scheme.primaryContainer
+                              : scheme.onSurfaceVariant,
+                          size: 26,
+                        ),
                         onPressed: () => appState.toggleFavorite(song),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
                   Slider(
                     value: progress.clamp(0.0, 1.0).toDouble(),
-                    activeColor: Colors.white,
-                    inactiveColor: Colors.white.withValues(alpha: 0.22),
                     onChanged: (value) => player.seek(
                       Duration(
                           milliseconds:
                               (player.duration.inMilliseconds * value).round()),
                     ),
                   ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(_format(player.position),
-                          style: const TextStyle(color: Colors.white70)),
-                      Text(_format(player.duration),
-                          style: const TextStyle(color: Colors.white70)),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _format(player.position),
+                          style: GoogleFonts.hankenGrotesk(
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        Text(
+                          _format(player.duration),
+                          style: GoogleFonts.hankenGrotesk(
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
                   if (player.error != null) ...[
                     Text(
                       player.error!,
                       textAlign: TextAlign.center,
-                      style:
-                          TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(color: scheme.error, fontSize: 13),
                     ),
                     const SizedBox(height: 12),
                   ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      IconButton.filledTonal(
+                      _ControlButton(
                         tooltip: 'Repeat',
-                        icon: Icon(_repeatIcon(player.repeatMode)),
+                        icon: _repeatIcon(player.repeatMode),
                         onPressed: player.cycleRepeatMode,
+                        isActive: player.repeatMode != PlaybackRepeatMode.off,
                       ),
                       IconButton(
                         tooltip: 'Previous',
-                        iconSize: 36,
-                        icon: const Icon(Icons.skip_previous),
+                        iconSize: 32,
+                        icon: const Icon(Icons.skip_previous_rounded),
+                        color: scheme.onSurface,
                         onPressed: player.previous,
                       ),
-                      IconButton.filled(
-                        tooltip: player.isPlaying ? 'Pause' : 'Play',
-                        iconSize: 52,
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.18),
-                          foregroundColor: Colors.white,
-                          fixedSize: const Size(82, 82),
-                          side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.32)),
-                        ),
-                        icon: Icon(
-                            player.isPlaying ? Icons.pause : Icons.play_arrow),
-                        onPressed: player.toggle,
-                      ),
+                      _PlayPauseButton(player: player),
                       IconButton(
                         tooltip: 'Next',
-                        iconSize: 36,
-                        icon: const Icon(Icons.skip_next),
+                        iconSize: 32,
+                        icon: const Icon(Icons.skip_next_rounded),
+                        color: scheme.onSurface,
                         onPressed: player.next,
                       ),
-                      IconButton.filledTonal(
+                      _ControlButton(
                         tooltip: 'Queue',
-                        icon: const Icon(Icons.queue_music),
+                        icon: Icons.queue_music_rounded,
                         onPressed: () => _showQueue(context),
                       ),
                     ],
@@ -209,27 +232,43 @@ class FullPlayerPage extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            Text(
-              player.activeLyric?.text ?? 'Lyrics will appear when available.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            for (final line in player.lyrics.take(40))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  line.text,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: line == player.activeLyric
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
+            const SizedBox(height: 28),
+            if (player.activeLyric != null || player.lyrics.isNotEmpty) ...[
+              Text(
+                player.activeLyric?.text ?? '',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.sora(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (final line in player.lyrics.take(40))
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Text(
+                    line.text,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.hankenGrotesk(
+                      fontSize: 14,
+                      color: line == player.activeLyric
+                          ? scheme.primaryContainer
+                          : scheme.onSurfaceVariant.withValues(alpha: 0.7),
+                      fontWeight: line == player.activeLyric
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                    ),
                   ),
+                ),
+            ] else
+              Text(
+                'Lyrics will appear when available.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.hankenGrotesk(
+                  fontSize: 13,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
               ),
           ],
@@ -240,9 +279,9 @@ class FullPlayerPage extends StatelessWidget {
 
   static IconData _repeatIcon(PlaybackRepeatMode mode) {
     return switch (mode) {
-      PlaybackRepeatMode.off => Icons.repeat,
-      PlaybackRepeatMode.one => Icons.repeat_one,
-      PlaybackRepeatMode.all => Icons.repeat_on,
+      PlaybackRepeatMode.off => Icons.repeat_rounded,
+      PlaybackRepeatMode.one => Icons.repeat_one_rounded,
+      PlaybackRepeatMode.all => Icons.repeat_on_rounded,
     };
   }
 
@@ -254,28 +293,52 @@ class FullPlayerPage extends StatelessWidget {
 
   void _showQueue(BuildContext context) {
     final player = context.read<PlayerController>();
+    final scheme = Theme.of(context).colorScheme;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      backgroundColor: const Color(0xFF1F201E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) {
         return ListView(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: Text(
                 'Queue',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: GoogleFonts.sora(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                  letterSpacing: -0.3,
+                ),
               ),
             ),
             for (final song in player.queue)
               ListTile(
-                title: Text(song.name),
-                subtitle: Text(song.artistText),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                title: Text(
+                  song.name,
+                  style: GoogleFonts.sora(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: song.id == player.current?.id
+                        ? scheme.primaryContainer
+                        : scheme.onSurface,
+                  ),
+                ),
+                subtitle: Text(
+                  song.artistText,
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
                 leading: song.id == player.current?.id
-                    ? const Icon(Icons.graphic_eq)
+                    ? Icon(Icons.graphic_eq, color: scheme.primaryContainer)
                     : null,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -289,8 +352,8 @@ class FullPlayerPage extends StatelessWidget {
   }
 }
 
-class _GlassPanel extends StatelessWidget {
-  const _GlassPanel({required this.child});
+class _InfoPanel extends StatelessWidget {
+  const _InfoPanel({required this.child});
 
   final Widget child;
 
@@ -299,18 +362,78 @@ class _GlassPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(38),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        color: const Color(0xFF252523),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
-            blurRadius: 44,
-            offset: const Offset(0, 20),
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 32,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
       child: child,
+    );
+  }
+}
+
+class _PlayPauseButton extends StatelessWidget {
+  const _PlayPauseButton({required this.player});
+
+  final PlayerController player;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: player.toggle,
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: scheme.primaryContainer,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: scheme.primaryContainer.withValues(alpha: 0.35),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Icon(
+          player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          color: scheme.onPrimaryContainer,
+          size: 38,
+        ),
+      ),
+    );
+  }
+}
+
+class _ControlButton extends StatelessWidget {
+  const _ControlButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.isActive = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: tooltip,
+      icon: Icon(icon),
+      color: isActive ? scheme.primaryContainer : scheme.onSurfaceVariant,
+      iconSize: 22,
+      onPressed: onPressed,
     );
   }
 }
