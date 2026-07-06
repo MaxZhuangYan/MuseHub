@@ -227,18 +227,13 @@ class MiniPlayer extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 1),
                                     Text(
-                                      (player.error == null
-                                              ? null
-                                              : strings.trackUnavailable) ??
-                                          player.activeLyric?.text ??
+                                      player.activeLyric?.text ??
                                           song.artistText,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.hankenGrotesk(
                                         fontSize: 11,
-                                        color: player.error == null
-                                            ? scheme.onSurfaceVariant
-                                            : scheme.error,
+                                        color: scheme.onSurfaceVariant,
                                       ),
                                     ),
                                   ],

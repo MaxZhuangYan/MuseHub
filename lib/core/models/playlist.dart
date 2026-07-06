@@ -9,12 +9,24 @@ class MusicPlaylist {
 
   factory MusicPlaylist.fromJson(Map<String, dynamic> json) {
     return MusicPlaylist(
-      id: json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}') ?? 0,
+      id: json['id'] is int
+          ? json['id'] as int
+          : int.tryParse('${json['id']}') ?? 0,
       name: '${json['name'] ?? ''}',
-      coverUrl: '${json['picUrl'] ?? json['coverImgUrl'] ?? ''}',
-      playCount: json['playCount'] is num ? (json['playCount'] as num).toInt() : 0,
+      coverUrl: _normalizeImageUrl(json['picUrl'] ?? json['coverImgUrl']),
+      playCount:
+          json['playCount'] is num ? (json['playCount'] as num).toInt() : 0,
       description: json['description']?.toString(),
     );
+  }
+
+  static String _normalizeImageUrl(dynamic value) {
+    final url = '${value ?? ''}'.trim();
+    if (url.isEmpty) return '';
+    if (url.startsWith('http://')) {
+      return 'https://${url.substring('http://'.length)}';
+    }
+    return url;
   }
 
   final int id;

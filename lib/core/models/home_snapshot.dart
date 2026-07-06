@@ -9,9 +9,20 @@ class BannerItem {
 
   factory BannerItem.fromJson(Map<String, dynamic> json) {
     return BannerItem(
-      imageUrl: '${json['pic'] ?? json['imageUrl'] ?? ''}',
+      imageUrl: _normalizeImageUrl(
+        json['pic'] ?? json['imageUrl'] ?? json['bigImageUrl'],
+      ),
       title: '${json['typeTitle'] ?? json['titleColor'] ?? 'Featured'}',
     );
+  }
+
+  static String _normalizeImageUrl(dynamic value) {
+    final url = '${value ?? ''}'.trim();
+    if (url.isEmpty) return '';
+    if (url.startsWith('http://')) {
+      return 'https://${url.substring('http://'.length)}';
+    }
+    return url;
   }
 
   final String imageUrl;

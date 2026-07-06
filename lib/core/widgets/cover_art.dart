@@ -16,14 +16,26 @@ class CoverArt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(borderRadius);
-    final placeholder = Container(
+    final placeholder = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.surfaceContainerHighest,
+            Theme.of(context).colorScheme.surfaceContainer,
+          ],
+        ),
       ),
-      child: Icon(
-        Icons.music_note,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      child: Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          color: Theme.of(context)
+              .colorScheme
+              .onSurfaceVariant
+              .withValues(alpha: 0.72),
+        ),
       ),
     );
 

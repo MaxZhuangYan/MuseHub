@@ -155,16 +155,7 @@ class MusicApi {
         .map(Song.fromJson)
         .where((song) => song.id != 0)
         .toList();
-    if (!_usesDirectNetease ||
-        songs.every((song) => song.coverUrl.isNotEmpty)) {
-      return songs;
-    }
-    final detailedSongs =
-        await songDetails(songs.map((song) => song.id).toList());
-    final detailsById = {for (final song in detailedSongs) song.id: song};
-    return [
-      for (final song in songs) detailsById[song.id] ?? song,
-    ];
+    return _hydrateMissingSongDetails(songs);
   }
 
   Future<List<String>> searchSuggestions(String keyword) async {
@@ -363,6 +354,31 @@ class MusicApi {
         .map(Song.fromJson)
         .where((song) => song.id != 0)
         .toList();
+  }
+
+  Future<List<Song>> _hydrateMissingSongDetails(List<Song> songs) async {
+    final missingIds = songs
+        .where((song) => song.coverUrl.isEmpty || song.artists.isEmpty)
+        .map((song) => song.id)
+        .toList();
+    if (missingIds.isEmpty) return songs;
+
+    try {
+      final detailedSongs = await songDetails(missingIds);
+      final detailsById = {for (final song in detailedSongs) song.id: song};
+      return [
+        for (final song in songs)
+          detailsById[song.id] == null
+              ? song
+              : song.mergeDetails(detailsById[song.id]!),
+      ];
+    } on Object catch (error) {
+      developer.log(
+        'Song detail hydration failed: $error',
+        name: 'MuseHub.MusicApi',
+      );
+      return songs;
+    }
   }
 
   Future<List<LyricLine>> lyrics(int id) async {

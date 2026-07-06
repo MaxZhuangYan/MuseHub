@@ -87,8 +87,21 @@ class PlayerController extends ChangeNotifier {
     try {
       await _audio.stop();
       if (!_isCurrentRequest(requestId, song.id)) return;
+      final hydratedSong = await _hydrateSongForPlayback(song);
+      if (!_isCurrentRequest(requestId, song.id)) return;
+      if (!identical(hydratedSong, song)) {
+        _current = hydratedSong;
+        _queue = [
+          for (final item in _queue)
+            item.id == hydratedSong.id ? item.mergeDetails(hydratedSong) : item,
+        ];
+        _duration = hydratedSong.durationMs == null
+            ? _duration
+            : Duration(milliseconds: hydratedSong.durationMs!);
+        notifyListeners();
+      }
       unawaited(_loadLyrics(song.id, requestId));
-      final url = await _api.songUrl(song);
+      final url = await _api.songUrl(hydratedSong);
       if (!_isCurrentRequest(requestId, song.id)) return;
       if (url == null) {
         throw const MusicApiException(
@@ -138,6 +151,17 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> seek(Duration position) => _audio.seek(position);
+
+  Future<Song> _hydrateSongForPlayback(Song song) async {
+    if (song.coverUrl.isNotEmpty && song.artists.isNotEmpty) return song;
+    try {
+      final details = await _api.songDetails([song.id]);
+      if (details.isEmpty) return song;
+      return song.mergeDetails(details.first);
+    } catch (_) {
+      return song;
+    }
+  }
 
   Future<void> _loadLyrics(int songId, int requestId) async {
     try {

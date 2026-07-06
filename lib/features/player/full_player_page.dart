@@ -196,16 +196,6 @@ class FullPlayerPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  if (player.error != null) ...[
-                    Text(
-                      strings.trackUnavailable,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: scheme.error, fontSize: 12),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
                   _PlayerControls(
                     player: player,
                     onShowQueue: () => _showQueue(context),
