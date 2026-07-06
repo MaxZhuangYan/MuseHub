@@ -175,100 +175,115 @@ class MiniPlayer extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
-        child: InkWell(
+        child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const FullPlayerPage()),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.white.withValues(alpha: 0.06),
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
-                  minHeight: 2,
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
-                  child: Row(
-                    children: [
-                      CoverArt(url: song.coverUrl, size: 42, borderRadius: 12),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              song.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.sora(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: scheme.onSurface,
-                                letterSpacing: -0.2,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.white.withValues(alpha: 0.06),
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
+                minHeight: 2,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const FullPlayerPage(),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
+                          child: Row(
+                            children: [
+                              CoverArt(
+                                url: song.coverUrl,
+                                size: 42,
+                                borderRadius: 12,
                               ),
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              (player.error == null
-                                      ? null
-                                      : strings.trackUnavailable) ??
-                                  player.activeLyric?.text ??
-                                  song.artistText,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.hankenGrotesk(
-                                fontSize: 11,
-                                color: player.error == null
-                                    ? scheme.onSurfaceVariant
-                                    : scheme.error,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      song.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.sora(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: scheme.onSurface,
+                                        letterSpacing: -0.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      (player.error == null
+                                              ? null
+                                              : strings.trackUnavailable) ??
+                                          player.activeLyric?.text ??
+                                          song.artistText,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.hankenGrotesk(
+                                        fontSize: 11,
+                                        color: player.error == null
+                                            ? scheme.onSurfaceVariant
+                                            : scheme.error,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                      if (player.isLoading)
-                        const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      else
-                        IconButton(
-                          tooltip:
-                              player.isPlaying ? strings.pause : strings.play,
-                          icon: Icon(
-                            player.isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            color: scheme.onSurface,
-                            size: 28,
-                          ),
-                          onPressed: player.toggle,
+                    ),
+                    if (player.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
+                      )
+                    else
                       IconButton(
-                        tooltip: strings.next,
+                        tooltip:
+                            player.isPlaying ? strings.pause : strings.play,
                         icon: Icon(
-                          Icons.skip_next_rounded,
-                          color: scheme.onSurfaceVariant,
-                          size: 24,
+                          player.isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: scheme.onSurface,
+                          size: 28,
                         ),
-                        onPressed: player.next,
+                        onPressed: player.toggle,
                       ),
-                    ],
-                  ),
+                    IconButton(
+                      tooltip: strings.next,
+                      icon: Icon(
+                        Icons.skip_next_rounded,
+                        color: scheme.onSurfaceVariant,
+                        size: 24,
+                      ),
+                      onPressed: player.next,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -206,36 +206,9 @@ class FullPlayerPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _ControlButton(
-                        tooltip: strings.repeat,
-                        icon: _repeatIcon(player.repeatMode),
-                        onPressed: player.cycleRepeatMode,
-                        isActive: player.repeatMode != PlaybackRepeatMode.off,
-                      ),
-                      IconButton(
-                        tooltip: strings.previous,
-                        iconSize: 32,
-                        icon: const Icon(Icons.skip_previous_rounded),
-                        color: scheme.onSurface,
-                        onPressed: player.previous,
-                      ),
-                      _PlayPauseButton(player: player),
-                      IconButton(
-                        tooltip: strings.next,
-                        iconSize: 32,
-                        icon: const Icon(Icons.skip_next_rounded),
-                        color: scheme.onSurface,
-                        onPressed: player.next,
-                      ),
-                      _ControlButton(
-                        tooltip: strings.queue,
-                        icon: Icons.queue_music_rounded,
-                        onPressed: () => _showQueue(context),
-                      ),
-                    ],
+                  _PlayerControls(
+                    player: player,
+                    onShowQueue: () => _showQueue(context),
                   ),
                 ],
               ),
@@ -283,14 +256,6 @@ class FullPlayerPage extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static IconData _repeatIcon(PlaybackRepeatMode mode) {
-    return switch (mode) {
-      PlaybackRepeatMode.off => Icons.repeat_rounded,
-      PlaybackRepeatMode.one => Icons.repeat_one_rounded,
-      PlaybackRepeatMode.all => Icons.repeat_on_rounded,
-    };
   }
 
   static String _format(Duration duration) {
@@ -395,11 +360,10 @@ class _PlayPauseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: player.toggle,
-      child: Container(
-        width: 72,
-        height: 72,
+    return SizedBox(
+      width: 72,
+      height: 72,
+      child: DecoratedBox(
         decoration: BoxDecoration(
           color: scheme.primaryContainer,
           shape: BoxShape.circle,
@@ -411,17 +375,94 @@ class _PlayPauseButton extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(
-          player.error != null
-              ? Icons.replay_rounded
-              : player.isPlaying
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
+        child: IconButton(
+          tooltip: player.isPlaying
+              ? AppStrings.of(context).pause
+              : AppStrings.of(context).play,
+          icon: Icon(
+            player.error != null
+                ? Icons.replay_rounded
+                : player.isPlaying
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+          ),
           color: scheme.onPrimaryContainer,
-          size: 38,
+          iconSize: 38,
+          onPressed: player.isLoading ? null : player.toggle,
         ),
       ),
     );
+  }
+}
+
+class _PlayerControls extends StatelessWidget {
+  const _PlayerControls({
+    required this.player,
+    required this.onShowQueue,
+  });
+
+  final PlayerController player;
+  final VoidCallback onShowQueue;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              tooltip: strings.previous,
+              iconSize: 32,
+              constraints: const BoxConstraints.tightFor(width: 56, height: 56),
+              icon: const Icon(Icons.skip_previous_rounded),
+              color: scheme.onSurface,
+              onPressed: player.previous,
+            ),
+            const SizedBox(width: 18),
+            _PlayPauseButton(player: player),
+            const SizedBox(width: 18),
+            IconButton(
+              tooltip: strings.next,
+              iconSize: 32,
+              constraints: const BoxConstraints.tightFor(width: 56, height: 56),
+              icon: const Icon(Icons.skip_next_rounded),
+              color: scheme.onSurface,
+              onPressed: player.next,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _ControlButton(
+              tooltip: strings.repeat,
+              icon: _repeatIcon(player.repeatMode),
+              onPressed: player.cycleRepeatMode,
+              isActive: player.repeatMode != PlaybackRepeatMode.off,
+            ),
+            const SizedBox(width: 28),
+            _ControlButton(
+              tooltip: strings.queue,
+              icon: Icons.queue_music_rounded,
+              onPressed: onShowQueue,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static IconData _repeatIcon(PlaybackRepeatMode mode) {
+    return switch (mode) {
+      PlaybackRepeatMode.off => Icons.repeat_rounded,
+      PlaybackRepeatMode.one => Icons.repeat_one_rounded,
+      PlaybackRepeatMode.all => Icons.repeat_on_rounded,
+    };
   }
 }
 
