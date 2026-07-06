@@ -249,7 +249,7 @@ class MiniPlayer extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (player.isLoading)
+                    if (player.isLoading && !player.isPlaying)
                       const Padding(
                         padding: EdgeInsets.all(12),
                         child: SizedBox(

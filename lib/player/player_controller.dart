@@ -122,7 +122,8 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> toggle() async {
-    if (_current == null || _isLoading) return;
+    if (_current == null) return;
+    if (_isLoading && !_audio.playing) return;
     if (_error != null) {
       final song = _current!;
       _unplayableIds.remove(song.id);

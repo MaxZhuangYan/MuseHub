@@ -388,7 +388,8 @@ class _PlayPauseButton extends StatelessWidget {
           ),
           color: scheme.onPrimaryContainer,
           iconSize: 38,
-          onPressed: player.isLoading ? null : player.toggle,
+          onPressed:
+              player.isLoading && !player.isPlaying ? null : player.toggle,
         ),
       ),
     );
