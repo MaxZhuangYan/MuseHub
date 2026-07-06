@@ -42,7 +42,7 @@ app.get('/search', async (c) => {
   const results = await Promise.all(
     sources.searchable().map(async (source) => source.search(query)),
   );
-  return c.json({ results: results.flat() });
+  return c.json({ results: results.flat().map(toPublicCandidate) });
 });
 
 app.post('/tracks/resolve', async (c) => {
@@ -168,6 +168,17 @@ function validateCandidate(candidate: Partial<TrackCandidate>): string | null {
     return 'duration must be a positive number';
   }
   return null;
+}
+
+function toPublicCandidate(candidate: TrackCandidate): TrackCandidate {
+  return {
+    title: candidate.title,
+    artist: candidate.artist,
+    duration: candidate.duration ?? null,
+    version: candidate.version ?? null,
+    sourceInstanceId: candidate.sourceInstanceId,
+    sourceTrackId: candidate.sourceTrackId,
+  };
 }
 
 serve({ fetch: app.fetch, port }, (info) => {
