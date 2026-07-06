@@ -56,4 +56,25 @@ void main() {
     expect(merged.coverUrl, 'https://p1.music.126.net/detail.jpg');
     expect(merged.durationMs, 180000);
   });
+
+  test('Song.fromJson builds Netease artwork URL from album picId', () {
+    final song = Song.fromJson({
+      'id': 17177324,
+      'name': 'Yellow',
+      'artists': [
+        {'id': 89365, 'name': 'Coldplay'},
+      ],
+      'album': {
+        'name': 'Yellow',
+        'picId': 109951167815599264,
+      },
+      'duration': 266773,
+    });
+
+    expect(
+      song.coverUrl,
+      'https://p2.music.126.net/n6BatGZdnRaEnIC0h7kVOg==/'
+      '109951167815599264.jpg?param=300y300',
+    );
+  });
 }

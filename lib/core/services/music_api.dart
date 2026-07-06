@@ -94,11 +94,13 @@ class MusicApi {
         .where((item) => item.imageUrl.isNotEmpty)
         .toList();
 
-    final newSongs = ((newSongsData['result'] as List?) ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(Song.fromJson)
-        .where((song) => song.id != 0)
-        .toList();
+    final newSongs = await _hydrateMissingSongDetails(
+      ((newSongsData['result'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(Song.fromJson)
+          .where((song) => song.id != 0)
+          .toList(),
+    );
 
     final playlists = ((playlistsData['result'] as List?) ?? const [])
         .whereType<Map<String, dynamic>>()
@@ -418,12 +420,14 @@ class MusicApi {
     final playlist = (data['playlist'] as Map?) ?? (data['result'] as Map?);
     final tracks = (playlist?['tracks'] as List?) ?? const [];
     if (tracks.isNotEmpty) {
-      return tracks
-          .whereType<Map<String, dynamic>>()
-          .take(60)
-          .map(Song.fromJson)
-          .where((song) => song.id != 0)
-          .toList();
+      return _hydrateMissingSongDetails(
+        tracks
+            .whereType<Map<String, dynamic>>()
+            .take(60)
+            .map(Song.fromJson)
+            .where((song) => song.id != 0)
+            .toList(),
+      );
     }
     final trackIds = ((playlist?['trackIds'] as List?) ?? const [])
         .whereType<Map<String, dynamic>>()

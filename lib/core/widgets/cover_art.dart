@@ -12,6 +12,12 @@ class CoverArt extends StatelessWidget {
   final String url;
   final double? size;
   final double borderRadius;
+  static const _imageHeaders = {
+    'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    'Referer': 'https://music.163.com/',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +54,7 @@ class CoverArt extends StatelessWidget {
             ? placeholder
             : CachedNetworkImage(
                 imageUrl: url,
+                httpHeaders: _imageHeaders,
                 fit: BoxFit.cover,
                 placeholder: (_, __) => placeholder,
                 errorWidget: (_, __, ___) => placeholder,
