@@ -73,6 +73,11 @@ class AppStrings {
   String get resolverUrl => _t('resolverUrl');
   String get resolverHelper => _t('resolverHelper');
   String get musicServicesUpdated => _t('musicServicesUpdated');
+  String get language => _t('language');
+  String get followSystem => _t('followSystem');
+  String get simplifiedChinese => _t('simplifiedChinese');
+  String get traditionalChinese => _t('traditionalChinese');
+  String get english => _t('english');
   String get favoriteSongs => _t('favoriteSongs');
   String savedLocally(int count) =>
       _t('savedLocally').replaceAll('{count}', '$count');
@@ -149,6 +154,11 @@ const _en = {
   'resolverUrl': 'Alger fallback resolver URL',
   'resolverHelper': 'Optional. Example: http://127.0.0.1:30489',
   'musicServicesUpdated': 'Music services updated',
+  'language': 'Language',
+  'followSystem': 'Follow system',
+  'simplifiedChinese': 'Simplified Chinese',
+  'traditionalChinese': 'Traditional Chinese',
+  'english': 'English',
   'favoriteSongs': 'Favorite songs',
   'savedLocally': '{count} saved locally',
   'mobileRebuild': 'Mobile rebuild',
@@ -201,6 +211,11 @@ const _zhHans = {
   'resolverUrl': 'Alger 备用解析服务地址',
   'resolverHelper': '可选。例如：http://127.0.0.1:30489',
   'musicServicesUpdated': '音乐服务已更新',
+  'language': '语言',
+  'followSystem': '跟随系统',
+  'simplifiedChinese': '简体中文',
+  'traditionalChinese': '繁體中文',
+  'english': 'English',
   'favoriteSongs': '收藏歌曲',
   'savedLocally': '本地已保存 {count} 首',
   'mobileRebuild': '移动版重构',
@@ -251,6 +266,11 @@ const _zhHant = {
   'resolverUrl': 'Alger 備用解析服務位址',
   'resolverHelper': '可選。例如：http://127.0.0.1:30489',
   'musicServicesUpdated': '音樂服務已更新',
+  'language': '語言',
+  'followSystem': '跟隨系統',
+  'simplifiedChinese': '简体中文',
+  'traditionalChinese': '繁體中文',
+  'english': 'English',
   'favoriteSongs': '收藏歌曲',
   'savedLocally': '本機已儲存 {count} 首',
   'mobileRebuild': '行動版重構',

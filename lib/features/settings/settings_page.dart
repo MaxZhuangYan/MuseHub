@@ -46,6 +46,42 @@ class _SettingsPageState extends State<SettingsPage> {
               ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 20),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.language_rounded),
+          title: Text(strings.language),
+          subtitle: Text(AppState.localeLabel(context, appState.locale)),
+          trailing: DropdownButton<Locale?>(
+            value: appState.locale,
+            underline: const SizedBox.shrink(),
+            items: [
+              DropdownMenuItem<Locale?>(
+                value: null,
+                child: Text(strings.followSystem),
+              ),
+              DropdownMenuItem<Locale?>(
+                value: const Locale.fromSubtags(
+                  languageCode: 'zh',
+                  scriptCode: 'Hans',
+                ),
+                child: Text(strings.simplifiedChinese),
+              ),
+              DropdownMenuItem<Locale?>(
+                value: const Locale.fromSubtags(
+                  languageCode: 'zh',
+                  scriptCode: 'Hant',
+                ),
+                child: Text(strings.traditionalChinese),
+              ),
+              DropdownMenuItem<Locale?>(
+                value: const Locale('en'),
+                child: Text(strings.english),
+              ),
+            ],
+            onChanged: appState.setLocale,
+          ),
+        ),
+        const SizedBox(height: 12),
         TextField(
           controller: _apiController,
           decoration: InputDecoration(

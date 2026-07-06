@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_strings.dart';
 import 'models/song.dart';
 import 'services/music_api.dart';
 
@@ -11,12 +13,15 @@ class AppState extends ChangeNotifier {
 
   static const _apiBaseUrlKey = 'apiBaseUrl';
   static const _resolverBaseUrlKey = 'resolverBaseUrl';
+  static const _localeKey = 'locale';
   final Set<int> _favoriteIds = {};
   String _apiBaseUrl = MusicApi.defaultBaseUrl;
   String _resolverBaseUrl = _defaultResolverBaseUrl;
+  Locale? _locale;
 
   String get apiBaseUrl => _apiBaseUrl;
   String get resolverBaseUrl => _resolverBaseUrl;
+  Locale? get locale => _locale;
   Set<int> get favoriteIds => Set.unmodifiable(_favoriteIds);
 
   Future<void> load() async {
@@ -30,12 +35,25 @@ class AppState extends ChangeNotifier {
         : MusicApi.normalizeOptionalBaseUrl(storedResolver);
     api.baseUrl = _apiBaseUrl;
     api.resolverBaseUrl = _resolverBaseUrl;
+    _locale = _decodeLocale(prefs.getString(_localeKey));
     final storedFavorites = prefs.getStringList('favorites') ?? const [];
     _favoriteIds
       ..clear()
       ..addAll(storedFavorites
           .map((item) => int.tryParse(item) ?? 0)
           .where((id) => id != 0));
+    notifyListeners();
+  }
+
+  Future<void> setLocale(Locale? locale) async {
+    _locale = locale;
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = _encodeLocale(locale);
+    if (encoded == null) {
+      await prefs.remove(_localeKey);
+    } else {
+      await prefs.setString(_localeKey, encoded);
+    }
     notifyListeners();
   }
 
@@ -71,6 +89,40 @@ class AppState extends ChangeNotifier {
   }
 
   bool isFavorite(Song song) => _favoriteIds.contains(song.id);
+
+  static String? _encodeLocale(Locale? locale) {
+    if (locale == null) return null;
+    final scriptCode = locale.scriptCode;
+    if (scriptCode == null || scriptCode.isEmpty) {
+      return locale.languageCode;
+    }
+    return '${locale.languageCode}-$scriptCode';
+  }
+
+  static Locale? _decodeLocale(String? value) {
+    return switch (value) {
+      'en' => const Locale('en'),
+      'zh-Hans' => const Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hans',
+        ),
+      'zh-Hant' => const Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hant',
+        ),
+      _ => null,
+    };
+  }
+
+  static String localeLabel(BuildContext context, Locale? locale) {
+    final strings = AppStrings.of(context);
+    return switch (_encodeLocale(locale)) {
+      'en' => strings.english,
+      'zh-Hans' => strings.simplifiedChinese,
+      'zh-Hant' => strings.traditionalChinese,
+      _ => strings.followSystem,
+    };
+  }
 
   static String get _defaultResolverBaseUrl {
     if (kIsWeb) return MusicApi.defaultResolverBaseUrl;

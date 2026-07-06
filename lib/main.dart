@@ -36,19 +36,22 @@ class MuseHubApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AppState(api)..load()),
         ChangeNotifierProvider(create: (_) => PlayerController(api)),
       ],
-      child: MaterialApp(
-        title: 'MuseHub',
-        debugShowCheckedModeBanner: false,
-        supportedLocales: AppStrings.supportedLocales,
-        localizationsDelegates: const [
-          AppStrings.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-        ],
-        theme: MuseTheme.light(),
-        darkTheme: MuseTheme.dark(),
-        home: const AppShell(),
+      child: Consumer<AppState>(
+        builder: (context, appState, _) => MaterialApp(
+          title: 'MuseHub',
+          debugShowCheckedModeBanner: false,
+          locale: appState.locale,
+          supportedLocales: AppStrings.supportedLocales,
+          localizationsDelegates: const [
+            AppStrings.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          theme: MuseTheme.light(),
+          darkTheme: MuseTheme.dark(),
+          home: const AppShell(),
+        ),
       ),
     );
   }
