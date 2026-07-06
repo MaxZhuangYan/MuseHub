@@ -16,3 +16,13 @@ windows/
 .DS_Store
 
 node_modules/
+
+# Local secrets and reference artifacts
+*.key
+*.pem
+*.p8
+*.p12
+*.mobileprovision
+*.zip
+Main/
+Server/
