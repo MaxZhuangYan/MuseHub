@@ -55,6 +55,7 @@ class AppStrings {
   String get nowPlaying => _t('nowPlaying');
   String get repeat => _t('repeat');
   String get queue => _t('queue');
+  String get lyrics => _t('lyrics');
   String get lyricsUnavailable => _t('lyricsUnavailable');
   String get trackUnavailable => _t('trackUnavailable');
   String get madeForYou => _t('madeForYou');
@@ -129,6 +130,7 @@ const _en = {
   'nowPlaying': 'NOW PLAYING',
   'repeat': 'Repeat',
   'queue': 'Queue',
+  'lyrics': 'Lyrics',
   'lyricsUnavailable': 'Lyrics will appear when available.',
   'trackUnavailable':
       'This track is unavailable from the current music source.',
@@ -181,6 +183,7 @@ const _zhHans = {
   'nowPlaying': '正在播放',
   'repeat': '循环',
   'queue': '播放队列',
+  'lyrics': '歌词',
   'lyricsUnavailable': '有可用歌词时会显示在这里。',
   'trackUnavailable': '当前音乐源暂时无法播放这首歌。',
   'madeForYou': '为你推荐',
@@ -230,6 +233,7 @@ const _zhHant = {
   'nowPlaying': '正在播放',
   'repeat': '循環',
   'queue': '播放佇列',
+  'lyrics': '歌詞',
   'lyricsUnavailable': '有可用歌詞時會顯示在這裡。',
   'trackUnavailable': '目前音樂來源暫時無法播放這首歌。',
   'madeForYou': '為你推薦',
