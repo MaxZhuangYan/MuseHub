@@ -72,7 +72,22 @@ class AppStrings {
   String get apiBaseUrl => _t('apiBaseUrl');
   String get resolverUrl => _t('resolverUrl');
   String get resolverHelper => _t('resolverHelper');
+  String get serverBaseUrl => _t('serverBaseUrl');
+  String get serverHelper => _t('serverHelper');
   String get musicServicesUpdated => _t('musicServicesUpdated');
+  String get account => _t('account');
+  String get signedOut => _t('signedOut');
+  String get signIn => _t('signIn');
+  String get createAccount => _t('createAccount');
+  String get signOut => _t('signOut');
+  String get email => _t('email');
+  String get password => _t('password');
+  String get displayName => _t('displayName');
+  String get optional => _t('optional');
+  String get authRequired => _t('authRequired');
+  String get authSuccess => _t('authSuccess');
+  String get signedOutMessage => _t('signedOutMessage');
+  String get accountServerHint => _t('accountServerHint');
   String get language => _t('language');
   String get followSystem => _t('followSystem');
   String get simplifiedChinese => _t('simplifiedChinese');
@@ -153,7 +168,22 @@ const _en = {
   'apiBaseUrl': 'API base URL',
   'resolverUrl': 'Alger fallback resolver URL',
   'resolverHelper': 'Optional. Example: http://127.0.0.1:30489',
+  'serverBaseUrl': 'MuseHub Server URL',
+  'serverHelper': 'Example: http://127.0.0.1:30490',
   'musicServicesUpdated': 'Music services updated',
+  'account': 'Account',
+  'signedOut': 'Not signed in',
+  'signIn': 'Sign in',
+  'createAccount': 'Create account',
+  'signOut': 'Sign out',
+  'email': 'Email',
+  'password': 'Password',
+  'displayName': 'Display name',
+  'optional': 'Optional',
+  'authRequired': 'Sign in to sync favorites, playlists, and playback state.',
+  'authSuccess': 'Account connected',
+  'signedOutMessage': 'Signed out',
+  'accountServerHint': 'Uses MuseHub Server for account and sync.',
   'language': 'Language',
   'followSystem': 'Follow system',
   'simplifiedChinese': 'Simplified Chinese',
@@ -210,7 +240,22 @@ const _zhHans = {
   'apiBaseUrl': 'API 服务地址',
   'resolverUrl': 'Alger 备用解析服务地址',
   'resolverHelper': '可选。例如：http://127.0.0.1:30489',
+  'serverBaseUrl': 'MuseHub Server 地址',
+  'serverHelper': '例如：http://127.0.0.1:30490',
   'musicServicesUpdated': '音乐服务已更新',
+  'account': '账号',
+  'signedOut': '未登录',
+  'signIn': '登录',
+  'createAccount': '注册账号',
+  'signOut': '退出登录',
+  'email': '邮箱',
+  'password': '密码',
+  'displayName': '显示名称',
+  'optional': '可选',
+  'authRequired': '登录后可同步收藏、歌单和播放状态。',
+  'authSuccess': '账号已连接',
+  'signedOutMessage': '已退出登录',
+  'accountServerHint': '使用 MuseHub Server 处理账号与同步。',
   'language': '语言',
   'followSystem': '跟随系统',
   'simplifiedChinese': '简体中文',
@@ -265,7 +310,22 @@ const _zhHant = {
   'apiBaseUrl': 'API 服務位址',
   'resolverUrl': 'Alger 備用解析服務位址',
   'resolverHelper': '可選。例如：http://127.0.0.1:30489',
+  'serverBaseUrl': 'MuseHub Server 位址',
+  'serverHelper': '例如：http://127.0.0.1:30490',
   'musicServicesUpdated': '音樂服務已更新',
+  'account': '帳號',
+  'signedOut': '未登入',
+  'signIn': '登入',
+  'createAccount': '註冊帳號',
+  'signOut': '登出',
+  'email': '信箱',
+  'password': '密碼',
+  'displayName': '顯示名稱',
+  'optional': '可選',
+  'authRequired': '登入後可同步收藏、歌單和播放狀態。',
+  'authSuccess': '帳號已連接',
+  'signedOutMessage': '已登出',
+  'accountServerHint': '使用 MuseHub Server 處理帳號與同步。',
   'language': '語言',
   'followSystem': '跟隨系統',
   'simplifiedChinese': '简体中文',

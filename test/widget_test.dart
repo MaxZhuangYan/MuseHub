@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:musehub/core/app_state.dart';
 import 'package:musehub/core/models/artist.dart';
 import 'package:musehub/core/models/song.dart';
+import 'package:musehub/core/services/musehub_server_api.dart';
 import 'package:musehub/core/services/music_api.dart';
 import 'package:musehub/features/player/full_player_page.dart';
 import 'package:musehub/l10n/app_strings.dart';
@@ -14,7 +15,9 @@ import 'package:musehub/player/player_controller.dart';
 
 void main() {
   testWidgets('renders the MuseHub app shell', (tester) async {
-    await tester.pumpWidget(MuseHubApp(api: MusicApi()));
+    await tester.pumpWidget(
+      MuseHubApp(api: MusicApi(), serverApi: MuseHubServerApi()),
+    );
     await tester.pump();
 
     expect(find.text('Home'), findsOneWidget);
@@ -31,6 +34,7 @@ void main() {
     });
 
     final api = MusicApi();
+    final serverApi = MuseHubServerApi();
     final player = _FakePlayerController();
     addTearDown(player.dispose);
 
@@ -38,7 +42,10 @@ void main() {
       MultiProvider(
         providers: [
           Provider<MusicApi>.value(value: api),
-          ChangeNotifierProvider<AppState>.value(value: AppState(api)),
+          Provider<MuseHubServerApi>.value(value: serverApi),
+          ChangeNotifierProvider<AppState>.value(
+            value: AppState(api, serverApi),
+          ),
           ChangeNotifierProvider<PlayerController>.value(value: player),
         ],
         child: const MaterialApp(
