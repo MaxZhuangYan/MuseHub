@@ -7,10 +7,13 @@ import path from 'node:path';
 const root = process.cwd();
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'musehub-smoke-'));
 const musicDir = path.join(tempRoot, 'music');
+const privateMusicDir = path.join(tempRoot, 'music_private');
 const dataDir = path.join(tempRoot, 'data');
 fs.mkdirSync(musicDir, { recursive: true });
+fs.mkdirSync(privateMusicDir, { recursive: true });
 fs.mkdirSync(dataDir, { recursive: true });
 fs.writeFileSync(path.join(musicDir, 'Coldplay - Yellow.mp3'), '0123456789abcdefghijklmnopqrstuvwxyz\n');
+fs.writeFileSync(path.join(privateMusicDir, 'secret.mp3'), 'SECRET OUTSIDE MUSIC ROOT\n');
 
 const port = String(39000 + Math.floor(Math.random() * 1000));
 const server = spawn(process.execPath, ['dist/index.js'], {
@@ -49,29 +52,12 @@ try {
   assert.equal(localCandidate.title, 'Yellow');
   assert.equal(localCandidate.artist, 'Coldplay');
 
-  const resolved = await postJson(`${base}/tracks/resolve`, localCandidate);
-  assert.ok(resolved.trackId);
-  assert.equal(resolved.created, true);
-
-  const resolvedAgain = await postJson(`${base}/tracks/resolve`, localCandidate);
-  assert.equal(resolvedAgain.trackId, resolved.trackId);
-  assert.equal(resolvedAgain.created, false);
-
-  const track = await getJson(`${base}/track/${resolved.trackId}`);
-  assert.equal(track.title, 'Yellow');
-  assert.equal(track.artist, 'Coldplay');
-  assert.equal(track.normalizedTitle, 'yellow');
-  assert.equal(track.normalizedArtist, 'coldplay');
-  assert.equal(track.bindings.length, 1);
-
-  const stream = await fetch(`${base}/stream/${resolved.trackId}`, {
-    headers: { range: 'bytes=0-9' },
+  const unauthorizedResolve = await fetch(`${base}/tracks/resolve`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(localCandidate),
   });
-  assert.equal(stream.status, 206);
-  assert.equal(stream.headers.get('accept-ranges'), 'bytes');
-  assert.equal(stream.headers.get('content-range'), 'bytes 0-9/37');
-  assert.equal(stream.headers.get('content-length'), '10');
-  assert.equal(await stream.text(), '0123456789');
+  assert.equal(unauthorizedResolve.status, 401);
 
   const unauthorized = await fetch(`${base}/favorites`);
   assert.equal(unauthorized.status, 401);
@@ -106,6 +92,57 @@ try {
     email: 'other@example.com',
     password: 'password123',
   });
+
+  const mockCandidate = search.results.find((candidate) => candidate.sourceInstanceId === 'mock-netease');
+  assert.ok(mockCandidate);
+  const resolvedMock = await postJson(`${base}/tracks/resolve`, mockCandidate, login.token);
+  assert.ok(resolvedMock.trackId);
+
+  const resolved = await postJson(`${base}/tracks/resolve`, localCandidate, login.token);
+  assert.ok(resolved.trackId);
+  assert.equal(resolved.trackId, resolvedMock.trackId);
+  assert.equal(resolved.created, false);
+
+  const resolvedAgain = await postJson(`${base}/tracks/resolve`, localCandidate, login.token);
+  assert.equal(resolvedAgain.trackId, resolved.trackId);
+  assert.equal(resolvedAgain.created, false);
+
+  const unauthorizedTrack = await fetch(`${base}/track/${resolved.trackId}`);
+  assert.equal(unauthorizedTrack.status, 401);
+  const unauthorizedStream = await fetch(`${base}/stream/${resolved.trackId}`);
+  assert.equal(unauthorizedStream.status, 401);
+
+  const track = await getJson(`${base}/track/${resolved.trackId}`, login.token);
+  assert.equal(track.title, 'Yellow');
+  assert.equal(track.artist, 'Coldplay');
+  assert.equal(track.normalizedTitle, 'yellow');
+  assert.equal(track.normalizedArtist, 'coldplay');
+  assert.equal(track.bindings.length, 2);
+
+  const stream = await fetch(`${base}/stream/${resolved.trackId}`, {
+    headers: { ...authHeaders(login.token), range: 'bytes=0-9' },
+  });
+  assert.equal(stream.status, 206);
+  assert.equal(stream.headers.get('accept-ranges'), 'bytes');
+  assert.equal(stream.headers.get('content-range'), 'bytes 0-9/37');
+  assert.equal(stream.headers.get('content-length'), '10');
+  assert.equal(await stream.text(), '0123456789');
+
+  const traversalCandidate = {
+    title: 'Secret',
+    artist: 'Coldplay',
+    duration: null,
+    version: null,
+    sourceInstanceId: 'local',
+    sourceTrackId: '../music_private/secret.mp3',
+  };
+  const traversalResolve = await postJson(`${base}/tracks/resolve`, traversalCandidate, login.token);
+  const traversalStream = await fetch(`${base}/stream/${traversalResolve.trackId}`, {
+    headers: authHeaders(login.token),
+  });
+  assert.notEqual(traversalStream.status, 200);
+  assert.ok([400, 404, 502].includes(traversalStream.status));
+  assert.notEqual(await traversalStream.text(), 'SECRET OUTSIDE MUSIC ROOT\n');
 
   const playlist = await postJson(
     `${base}/playlist`,

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Source, StreamHandle, TrackCandidate } from '../types.js';
+import { StreamError, type Source, type StreamHandle, type TrackCandidate } from '../types.js';
 
 const supportedExtensions = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.wav']);
 
@@ -41,10 +41,16 @@ export class LocalSource implements Source {
   async getStream(candidate: TrackCandidate): Promise<StreamHandle> {
     const absolutePath = path.resolve(this.musicDir, candidate.sourceTrackId);
     const root = path.resolve(this.musicDir);
-    if (!absolutePath.startsWith(root)) {
-      throw new Error('Invalid local source path');
+    if (absolutePath !== root && !absolutePath.startsWith(root + path.sep)) {
+      throw new StreamError('Invalid local source path', 400);
+    }
+    if (!fs.existsSync(absolutePath)) {
+      throw new StreamError('Local source file not found', 404);
     }
     const stat = fs.statSync(absolutePath);
+    if (!stat.isFile()) {
+      throw new StreamError('Local source path is not a file', 400);
+    }
     return {
       filePath: absolutePath,
       contentLength: stat.size,

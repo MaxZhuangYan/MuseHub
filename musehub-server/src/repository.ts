@@ -357,7 +357,7 @@ export class Repository {
 
     return (
       rows.find((row) => {
-        if (duration == null || row.duration == null) return duration == row.duration;
+        if (duration == null || row.duration == null) return true;
         return Math.abs(row.duration - duration) <= 2000;
       }) ?? null
     );

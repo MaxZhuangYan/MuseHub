@@ -66,3 +66,13 @@ export interface PublicUser {
   displayName: string | null;
   createdAt: string;
 }
+
+export class StreamError extends Error {
+  constructor(
+    message: string,
+    public readonly status: 400 | 404 | 502 = 502,
+  ) {
+    super(message);
+    this.name = 'StreamError';
+  }
+}

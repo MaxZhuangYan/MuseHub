@@ -16,7 +16,7 @@ import { LocalSource } from './sources/local.js';
 import { MockNeteaseSource } from './sources/mock-netease.js';
 import { SourceRegistry } from './sources/registry.js';
 import { proxyStream } from './stream.js';
-import type { PublicUser, TrackCandidate, User } from './types.js';
+import { StreamError, type PublicUser, type TrackCandidate, type User } from './types.js';
 
 const port = Number(process.env.PORT ?? 30490);
 const dbPath = process.env.DB_PATH ?? './data/musehub.sqlite';
@@ -115,7 +115,7 @@ app.get('/me', requireAuth, (c) => {
   return c.json({ user: toPublicUser(c.get('user')) });
 });
 
-app.post('/tracks/resolve', async (c) => {
+app.post('/tracks/resolve', requireAuth, async (c) => {
   const candidate = await c.req.json<TrackCandidate>();
   const error = validateCandidate(candidate);
   if (error) return c.json({ error }, 400);
@@ -123,21 +123,29 @@ app.post('/tracks/resolve', async (c) => {
   return c.json(result, result.created ? 201 : 200);
 });
 
-app.get('/track/:id', (c) => {
+app.get('/track/:id', requireAuth, (c) => {
   const track = repo.getTrack(c.req.param('id'));
   if (!track) return c.json({ error: 'Track not found' }, 404);
   return c.json(track);
 });
 
-app.get('/stream/:id', async (c) => {
+app.get('/stream/:id', requireAuth, async (c) => {
   const binding = repo.getBestBinding(c.req.param('id'));
   if (!binding) return c.json({ error: 'No playable binding found' }, 404);
   const source = sources.get(binding.sourceInstanceId);
   if (!source) return c.json({ error: 'Source not registered' }, 502);
   const candidate = repo.getBindingCandidate(binding);
   if (!candidate) return c.json({ error: 'Track not found' }, 404);
-  const handle = await source.getStream(candidate);
-  return proxyStream(c, handle);
+  try {
+    const handle = await source.getStream(candidate);
+    return proxyStream(c, handle);
+  } catch (error) {
+    if (error instanceof StreamError) {
+      return c.json({ error: error.message }, error.status);
+    }
+    console.error(error);
+    return c.json({ error: 'Stream unavailable' }, 502);
+  }
 });
 
 app.get('/playlists', requireAuth, (c) => {
