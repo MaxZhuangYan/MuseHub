@@ -1,18 +1,27 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import type { MiddlewareHandler } from 'hono';
+import {
+  createSessionToken,
+  hashPassword,
+  isValidEmail,
+  isValidPassword,
+  normalizeEmail,
+  verifyPassword,
+} from './auth.js';
 import { openDatabase } from './db.js';
 import { Repository } from './repository.js';
 import { LocalSource } from './sources/local.js';
 import { MockNeteaseSource } from './sources/mock-netease.js';
 import { SourceRegistry } from './sources/registry.js';
 import { proxyStream } from './stream.js';
-import type { TrackCandidate } from './types.js';
+import type { PublicUser, TrackCandidate, User } from './types.js';
 
 const port = Number(process.env.PORT ?? 30490);
 const dbPath = process.env.DB_PATH ?? './data/musehub.sqlite';
 const musicDir = process.env.MUSIC_DIR ?? '/music';
-const defaultUserId = 'local';
+const sessionTtlDays = 30;
 
 const db = openDatabase(dbPath);
 const repo = new Repository(db);
@@ -20,8 +29,25 @@ const sources = new SourceRegistry();
 sources.register(new MockNeteaseSource());
 sources.register(new LocalSource(musicDir));
 
-const app = new Hono();
+type AppEnv = {
+  Variables: {
+    user: User;
+    token: string;
+  };
+};
+
+const app = new Hono<AppEnv>();
 app.use('*', cors());
+
+const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const token = bearerToken(c.req.header('authorization'));
+  if (!token) return c.json({ error: 'Authentication required' }, 401);
+  const user = repo.getSessionUser(token);
+  if (!user) return c.json({ error: 'Invalid or expired session' }, 401);
+  c.set('user', user);
+  c.set('token', token);
+  await next();
+};
 
 app.get('/health', (c) => {
   return c.json({
@@ -43,6 +69,50 @@ app.get('/search', async (c) => {
     sources.searchable().map(async (source) => source.search(query)),
   );
   return c.json({ results: results.flat().map(toPublicCandidate) });
+});
+
+app.post('/auth/register', async (c) => {
+  const body = await c.req.json<{
+    email?: string;
+    password?: string;
+    displayName?: string | null;
+  }>();
+  const email = normalizeEmail(body.email ?? '');
+  const password = body.password ?? '';
+  if (!isValidEmail(email)) return c.json({ error: 'valid email is required' }, 400);
+  if (!isValidPassword(password)) {
+    return c.json({ error: 'password must be 8 to 256 characters' }, 400);
+  }
+  if (repo.getUserByEmail(email)) return c.json({ error: 'email already registered' }, 409);
+
+  const user = repo.createUser({
+    email,
+    passwordHash: await hashPassword(password),
+    displayName: body.displayName?.trim() || null,
+  });
+  const token = issueSession(user.id);
+  return c.json({ user: toPublicUser(user), token }, 201);
+});
+
+app.post('/auth/login', async (c) => {
+  const body = await c.req.json<{ email?: string; password?: string }>();
+  const email = normalizeEmail(body.email ?? '');
+  const password = body.password ?? '';
+  const user = repo.getUserByEmail(email);
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    return c.json({ error: 'invalid email or password' }, 401);
+  }
+  const token = issueSession(user.id);
+  return c.json({ user: toPublicUser(user), token });
+});
+
+app.post('/auth/logout', requireAuth, (c) => {
+  repo.deleteSession(c.get('token'));
+  return c.json({ ok: true });
+});
+
+app.get('/me', requireAuth, (c) => {
+  return c.json({ user: toPublicUser(c.get('user')) });
 });
 
 app.post('/tracks/resolve', async (c) => {
@@ -70,66 +140,66 @@ app.get('/stream/:id', async (c) => {
   return proxyStream(c, handle);
 });
 
-app.get('/playlists', (c) => {
-  return c.json({ playlists: repo.listPlaylists() });
+app.get('/playlists', requireAuth, (c) => {
+  return c.json({ playlists: repo.listPlaylists(c.get('user').id) });
 });
 
-app.post('/playlist', async (c) => {
+app.post('/playlist', requireAuth, async (c) => {
   const body = await c.req.json<{ name?: string }>();
   const name = body.name?.trim();
   if (!name) return c.json({ error: 'name is required' }, 400);
-  return c.json(repo.createPlaylist(name), 201);
+  return c.json(repo.createPlaylist(c.get('user').id, name), 201);
 });
 
-app.post('/playlist/:id/add', async (c) => {
+app.post('/playlist/:id/add', requireAuth, async (c) => {
   const body = await c.req.json<{ trackId?: string }>();
   if (!body.trackId) return c.json({ error: 'trackId is required' }, 400);
-  repo.addPlaylistTrack(c.req.param('id'), body.trackId);
+  const ok = repo.addPlaylistTrack(c.get('user').id, c.req.param('id'), body.trackId);
+  if (!ok) return c.json({ error: 'Playlist not found' }, 404);
   return c.json({ ok: true });
 });
 
-app.post('/playlist/:id/reorder', async (c) => {
+app.post('/playlist/:id/reorder', requireAuth, async (c) => {
   const body = await c.req.json<{ trackIds?: string[] }>();
   if (!Array.isArray(body.trackIds)) {
     return c.json({ error: 'trackIds must be an array' }, 400);
   }
-  repo.reorderPlaylist(c.req.param('id'), body.trackIds);
+  const ok = repo.reorderPlaylist(c.get('user').id, c.req.param('id'), body.trackIds);
+  if (!ok) return c.json({ error: 'Playlist not found' }, 404);
   return c.json({ ok: true });
 });
 
-app.post('/favorite/:id', (c) => {
-  repo.setFavorite(c.req.param('id'));
+app.post('/favorite/:id', requireAuth, (c) => {
+  repo.setFavorite(c.get('user').id, c.req.param('id'));
   return c.json({ ok: true });
 });
 
-app.delete('/favorite/:id', (c) => {
-  repo.deleteFavorite(c.req.param('id'));
+app.delete('/favorite/:id', requireAuth, (c) => {
+  repo.deleteFavorite(c.get('user').id, c.req.param('id'));
   return c.json({ ok: true });
 });
 
-app.get('/favorites', (c) => {
-  return c.json({ favorites: repo.listFavorites() });
+app.get('/favorites', requireAuth, (c) => {
+  return c.json({ favorites: repo.listFavorites(c.get('user').id) });
 });
 
-app.get('/playback-state/latest', (c) => {
-  const userId = c.req.query('userId') ?? defaultUserId;
-  return c.json({ playbackState: repo.getPlaybackState(userId) });
+app.get('/playback-state/latest', requireAuth, (c) => {
+  return c.json({ playbackState: repo.getPlaybackState(c.get('user').id) });
 });
 
-app.patch('/playback-state', async (c) => {
+app.patch('/playback-state', requireAuth, async (c) => {
   const body = await c.req.json<{
-    userId?: string;
     trackId?: string;
     positionMs?: number;
   }>();
   if (!body.trackId || typeof body.positionMs !== 'number') {
     return c.json({ error: 'trackId and positionMs are required' }, 400);
   }
-  repo.patchPlaybackState(body.userId ?? defaultUserId, body.trackId, body.positionMs);
+  repo.patchPlaybackState(c.get('user').id, body.trackId, body.positionMs);
   return c.json({ ok: true });
 });
 
-app.post('/history', async (c) => {
+app.post('/history', requireAuth, async (c) => {
   const body = await c.req.json<{
     trackId?: string;
     startedAt?: string;
@@ -143,6 +213,7 @@ app.post('/history', async (c) => {
     );
   }
   const id = repo.appendHistory({
+    userId: c.get('user').id,
     trackId: body.trackId,
     startedAt: body.startedAt,
     endedAt: body.endedAt,
@@ -151,9 +222,9 @@ app.post('/history', async (c) => {
   return c.json({ id }, 201);
 });
 
-app.get('/history', (c) => {
+app.get('/history', requireAuth, (c) => {
   const limit = Math.min(Number(c.req.query('limit') ?? 50), 200);
-  return c.json({ history: repo.listHistory(limit) });
+  return c.json({ history: repo.listHistory(c.get('user').id, limit) });
 });
 
 function validateCandidate(candidate: Partial<TrackCandidate>): string | null {
@@ -178,6 +249,28 @@ function toPublicCandidate(candidate: TrackCandidate): TrackCandidate {
     version: candidate.version ?? null,
     sourceInstanceId: candidate.sourceInstanceId,
     sourceTrackId: candidate.sourceTrackId,
+  };
+}
+
+function bearerToken(header: string | undefined): string | null {
+  const match = /^Bearer\s+(.+)$/i.exec(header ?? '');
+  return match?.[1]?.trim() || null;
+}
+
+function issueSession(userId: string): string {
+  repo.deleteExpiredSessions();
+  const token = createSessionToken();
+  const expiresAt = new Date(Date.now() + sessionTtlDays * 24 * 60 * 60 * 1000).toISOString();
+  repo.createSession(userId, token, expiresAt);
+  return token;
+}
+
+function toPublicUser(user: User): PublicUser {
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    createdAt: user.createdAt,
   };
 }
 

@@ -16,6 +16,25 @@ export function openDatabase(dbPath: string): Db {
 
 function applySchema(db: Db): void {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      passwordHash TEXT NOT NULL,
+      displayName TEXT,
+      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expiresAt TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sessions_user
+      ON sessions(userId, expiresAt);
+
     CREATE TABLE IF NOT EXISTS tracks (
       id TEXT PRIMARY KEY,
       createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -62,6 +81,7 @@ function applySchema(db: Db): void {
 
     CREATE TABLE IF NOT EXISTS playlists (
       id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL DEFAULT 'local',
       name TEXT NOT NULL,
       createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -79,8 +99,10 @@ function applySchema(db: Db): void {
       ON playlist_tracks(playlistId, position);
 
     CREATE TABLE IF NOT EXISTS favorites (
-      trackId TEXT PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
-      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      userId TEXT NOT NULL DEFAULT 'local',
+      trackId TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (userId, trackId)
     );
 
     CREATE TABLE IF NOT EXISTS playback_state (
@@ -92,10 +114,64 @@ function applySchema(db: Db): void {
 
     CREATE TABLE IF NOT EXISTS playback_history (
       id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL DEFAULT 'local',
       trackId TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
       startedAt TEXT NOT NULL,
       endedAt TEXT,
       durationPlayed INTEGER NOT NULL DEFAULT 0
     );
+  `);
+  applyLightweightMigrations(db);
+}
+
+function applyLightweightMigrations(db: Db): void {
+  ensureColumn(db, 'playlists', 'userId', "TEXT NOT NULL DEFAULT 'local'");
+  ensureColumn(db, 'favorites', 'userId', "TEXT NOT NULL DEFAULT 'local'");
+  ensureColumn(db, 'playback_history', 'userId', "TEXT NOT NULL DEFAULT 'local'");
+  migrateFavoritesPrimaryKey(db);
+
+  db.exec(`
+    INSERT OR IGNORE INTO users (id, email, passwordHash, displayName)
+    VALUES ('local', 'local@musehub.local', 'legacy-local-user', 'Local User');
+
+    CREATE INDEX IF NOT EXISTS idx_playlists_user
+      ON playlists(userId, createdAt);
+
+    CREATE INDEX IF NOT EXISTS idx_favorites_user
+      ON favorites(userId, createdAt);
+
+    CREATE INDEX IF NOT EXISTS idx_history_user
+      ON playback_history(userId, startedAt);
+  `);
+}
+
+function ensureColumn(db: Db, table: string, column: string, definition: string): void {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (rows.some((row) => row.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+function migrateFavoritesPrimaryKey(db: Db): void {
+  const rows = db.prepare('PRAGMA table_info(favorites)').all() as Array<{
+    name: string;
+    pk: number;
+  }>;
+  const trackIdColumn = rows.find((row) => row.name === 'trackId');
+  const userIdColumn = rows.find((row) => row.name === 'userId');
+  if (trackIdColumn?.pk !== 1 || userIdColumn?.pk === 1) return;
+
+  db.exec(`
+    CREATE TABLE favorites_next (
+      userId TEXT NOT NULL DEFAULT 'local',
+      trackId TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (userId, trackId)
+    );
+
+    INSERT OR IGNORE INTO favorites_next (userId, trackId, createdAt)
+    SELECT userId, trackId, createdAt FROM favorites;
+
+    DROP TABLE favorites;
+    ALTER TABLE favorites_next RENAME TO favorites;
   `);
 }

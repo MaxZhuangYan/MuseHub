@@ -50,3 +50,19 @@ export interface SourceBinding {
   matchConfidence: number;
   lastVerifiedAt: string | null;
 }
+
+export interface User {
+  id: string;
+  email: string;
+  passwordHash: string;
+  displayName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicUser {
+  id: string;
+  email: string;
+  displayName: string | null;
+  createdAt: string;
+}

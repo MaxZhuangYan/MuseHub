@@ -26,6 +26,10 @@ PORT=30490 DB_PATH=./data/musehub.sqlite MUSIC_DIR=/music npm run dev
 ```txt
 GET  /health
 GET  /search?q=yellow
+POST /auth/register
+POST /auth/login
+POST /auth/logout
+GET  /me
 POST /tracks/resolve
 GET  /track/:id
 GET  /stream/:id
@@ -43,6 +47,12 @@ GET   /playback-state/latest
 PATCH /playback-state
 POST  /history
 GET   /history
+```
+
+User-owned endpoints require:
+
+```txt
+Authorization: Bearer SESSION_TOKEN
 ```
 
 ## Example
@@ -78,6 +88,24 @@ Stream through the server:
 curl -L "http://127.0.0.1:30490/stream/TRACK_ID"
 ```
 
+Register and call a protected endpoint:
+
+```sh
+curl -X POST "http://127.0.0.1:30490/auth/register" \
+  -H "content-type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
+
+curl "http://127.0.0.1:30490/favorites" \
+  -H "authorization: Bearer SESSION_TOKEN"
+```
+
+Run the backend smoke test:
+
+```sh
+npm run build
+npm run smoke
+```
+
 ## Notes
 
 - Track IDs are UUID-like nanoid values. Source IDs are stored in bindings.
@@ -85,3 +113,5 @@ curl -L "http://127.0.0.1:30490/stream/TRACK_ID"
 - Normalized title and artist are used only for matching.
 - SQLite runs in WAL mode.
 - `/stream/:id` never returns raw source URLs to clients.
+- Passwords are hashed with Node.js `crypto.scrypt`.
+- Playlist, favorites, playback state, and history are scoped by authenticated user.

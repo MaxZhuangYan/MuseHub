@@ -6,10 +6,67 @@ import type {
   ResolvedTrack,
   SourceBinding,
   TrackCandidate,
+  User,
 } from './types.js';
 
 export class Repository {
   constructor(private readonly db: Db) {}
+
+  createUser(input: {
+    email: string;
+    passwordHash: string;
+    displayName?: string | null;
+  }): User {
+    const id = nanoid();
+    this.db
+      .prepare(
+        `INSERT INTO users (id, email, passwordHash, displayName)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(id, input.email, input.passwordHash, input.displayName ?? null);
+    return this.getUserById(id)!;
+  }
+
+  getUserByEmail(email: string): User | null {
+    return (
+      (this.db.prepare('SELECT * FROM users WHERE email = ?').get(email) as
+        | User
+        | undefined) ?? null
+    );
+  }
+
+  getUserById(id: string): User | null {
+    return (
+      (this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined) ??
+      null
+    );
+  }
+
+  createSession(userId: string, token: string, expiresAt: string): void {
+    this.db
+      .prepare('INSERT INTO sessions (token, userId, expiresAt) VALUES (?, ?, ?)')
+      .run(token, userId, expiresAt);
+  }
+
+  getSessionUser(token: string): User | null {
+    const row = this.db
+      .prepare(
+        `SELECT u.*
+         FROM sessions s
+         JOIN users u ON u.id = s.userId
+         WHERE s.token = ? AND s.expiresAt > CURRENT_TIMESTAMP`,
+      )
+      .get(token) as User | undefined;
+    return row ?? null;
+  }
+
+  deleteSession(token: string): void {
+    this.db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  }
+
+  deleteExpiredSessions(): void {
+    this.db.prepare('DELETE FROM sessions WHERE expiresAt <= CURRENT_TIMESTAMP').run();
+  }
 
   resolveTrack(candidate: TrackCandidate): { trackId: string; created: boolean } {
     const run = this.db.transaction(() => {
@@ -112,10 +169,16 @@ export class Repository {
     };
   }
 
-  listPlaylists(): unknown[] {
+  listPlaylists(userId: string): unknown[] {
     const playlists = this.db
-      .prepare('SELECT * FROM playlists ORDER BY createdAt DESC')
-      .all() as Array<{ id: string; name: string; createdAt: string; updatedAt: string }>;
+      .prepare('SELECT * FROM playlists WHERE userId = ? ORDER BY createdAt DESC')
+      .all(userId) as Array<{
+      id: string;
+      userId: string;
+      name: string;
+      createdAt: string;
+      updatedAt: string;
+    }>;
     return playlists.map((playlist) => ({
       ...playlist,
       tracks: this.db
@@ -130,14 +193,20 @@ export class Repository {
     }));
   }
 
-  createPlaylist(name: string): { id: string; name: string } {
+  createPlaylist(userId: string, name: string): { id: string; name: string } {
     const id = nanoid();
-    this.db.prepare('INSERT INTO playlists (id, name) VALUES (?, ?)').run(id, name);
+    this.db
+      .prepare('INSERT INTO playlists (id, userId, name) VALUES (?, ?, ?)')
+      .run(id, userId, name);
     return { id, name };
   }
 
-  addPlaylistTrack(playlistId: string, trackId: string): void {
+  addPlaylistTrack(userId: string, playlistId: string, trackId: string): boolean {
     const resolvedTrackId = this.resolveAlias(trackId);
+    const playlist = this.db
+      .prepare('SELECT id FROM playlists WHERE id = ? AND userId = ?')
+      .get(playlistId, userId);
+    if (!playlist) return false;
     const row = this.db
       .prepare('SELECT COALESCE(MAX(position), -1) + 1 AS next FROM playlist_tracks WHERE playlistId = ?')
       .get(playlistId) as { next: number };
@@ -147,9 +216,14 @@ export class Repository {
          VALUES (?, ?, ?)`,
       )
       .run(playlistId, resolvedTrackId, row.next);
+    return true;
   }
 
-  reorderPlaylist(playlistId: string, trackIds: string[]): void {
+  reorderPlaylist(userId: string, playlistId: string, trackIds: string[]): boolean {
+    const playlist = this.db
+      .prepare('SELECT id FROM playlists WHERE id = ? AND userId = ?')
+      .get(playlistId, userId);
+    if (!playlist) return false;
     const run = this.db.transaction(() => {
       for (let i = 0; i < trackIds.length; i++) {
         this.db
@@ -162,27 +236,31 @@ export class Repository {
       }
     });
     run();
+    return true;
   }
 
-  setFavorite(trackId: string): void {
+  setFavorite(userId: string, trackId: string): void {
     this.db
-      .prepare('INSERT OR IGNORE INTO favorites (trackId) VALUES (?)')
-      .run(this.resolveAlias(trackId));
+      .prepare('INSERT OR IGNORE INTO favorites (userId, trackId) VALUES (?, ?)')
+      .run(userId, this.resolveAlias(trackId));
   }
 
-  deleteFavorite(trackId: string): void {
-    this.db.prepare('DELETE FROM favorites WHERE trackId = ?').run(this.resolveAlias(trackId));
+  deleteFavorite(userId: string, trackId: string): void {
+    this.db
+      .prepare('DELETE FROM favorites WHERE userId = ? AND trackId = ?')
+      .run(userId, this.resolveAlias(trackId));
   }
 
-  listFavorites(): unknown[] {
+  listFavorites(userId: string): unknown[] {
     return this.db
       .prepare(
         `SELECT f.createdAt, m.trackId AS id, m.title, m.artist, m.duration, m.version
          FROM favorites f
          JOIN track_metadata m ON m.trackId = f.trackId
+         WHERE f.userId = ?
          ORDER BY f.createdAt DESC`,
       )
-      .all();
+      .all(userId);
   }
 
   getPlaybackState(userId: string): unknown | null {
@@ -207,6 +285,7 @@ export class Repository {
   }
 
   appendHistory(input: {
+    userId: string;
     trackId: string;
     startedAt: string;
     endedAt?: string | null;
@@ -215,11 +294,12 @@ export class Repository {
     const id = nanoid();
     this.db
       .prepare(
-        `INSERT INTO playback_history (id, trackId, startedAt, endedAt, durationPlayed)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO playback_history (id, userId, trackId, startedAt, endedAt, durationPlayed)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
+        input.userId,
         this.resolveAlias(input.trackId),
         input.startedAt,
         input.endedAt ?? null,
@@ -228,16 +308,17 @@ export class Repository {
     return id;
   }
 
-  listHistory(limit: number): unknown[] {
+  listHistory(userId: string, limit: number): unknown[] {
     return this.db
       .prepare(
         `SELECT h.*, m.title, m.artist
          FROM playback_history h
          JOIN track_metadata m ON m.trackId = h.trackId
+         WHERE h.userId = ?
          ORDER BY h.startedAt DESC
          LIMIT ?`,
       )
-      .all(limit);
+      .all(userId, limit);
   }
 
   resolveAlias(trackId: string): string {
