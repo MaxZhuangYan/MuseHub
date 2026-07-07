@@ -12,8 +12,10 @@ import {
 } from './auth.js';
 import { openDatabase } from './db.js';
 import { Repository } from './repository.js';
+import { AlgerSource } from './sources/alger.js';
 import { LocalSource } from './sources/local.js';
 import { MockNeteaseSource } from './sources/mock-netease.js';
+import { NeteaseSource } from './sources/netease.js';
 import { SourceRegistry } from './sources/registry.js';
 import { proxyStream } from './stream.js';
 import {
@@ -27,12 +29,39 @@ import {
 const port = Number(process.env.PORT ?? 30490);
 const dbPath = process.env.DB_PATH ?? './data/musehub.sqlite';
 const musicDir = process.env.MUSIC_DIR ?? '/music';
+const compatibleNeteaseApiBaseUrl =
+  process.env.NETEASE_API_BASE ??
+  'https://netease-cloud-music-api-five-roan-88.vercel.app';
+const directNeteaseApiBaseUrl =
+  process.env.NETEASE_DIRECT_API_BASE ?? 'https://music.163.com/api';
+const sourceRequestTimeoutMs = Number(process.env.SOURCE_REQUEST_TIMEOUT_MS ?? 8000);
+const algerResolverBaseUrl =
+  process.env.ALGER_RESOLVER_URL ?? process.env.RESOLVER_BASE_URL ?? '';
 const sessionTtlDays = 30;
 
 const db = openDatabase(dbPath);
 const repo = new Repository(db);
 const sources = new SourceRegistry();
 sources.register(new MockNeteaseSource());
+if (process.env.NETEASE_SOURCE_ENABLED !== 'false') {
+  sources.register(
+    new NeteaseSource({
+      compatibleApiBaseUrl: compatibleNeteaseApiBaseUrl,
+      directApiBaseUrl: directNeteaseApiBaseUrl,
+      timeoutMs: sourceRequestTimeoutMs,
+    }),
+  );
+}
+if (algerResolverBaseUrl) {
+  sources.register(
+    new AlgerSource({
+      resolverBaseUrl: algerResolverBaseUrl,
+      compatibleApiBaseUrl: compatibleNeteaseApiBaseUrl,
+      directApiBaseUrl: directNeteaseApiBaseUrl,
+      timeoutMs: Number(process.env.ALGER_RESOLVER_TIMEOUT_MS ?? 45000),
+    }),
+  );
+}
 sources.register(new LocalSource(musicDir));
 
 type AppEnv = {
@@ -79,7 +108,14 @@ app.get('/health', (c) => {
 app.get('/search', async (c) => {
   const query = c.req.query('q') ?? '';
   const results = await Promise.all(
-    sources.searchable().map(async (source) => source.search(query)),
+    sources.searchable().map(async (source) => {
+      try {
+        return await source.search(query);
+      } catch (error) {
+        console.warn(`Source search failed: ${source.id}`, error);
+        return [];
+      }
+    }),
   );
   return c.json({ results: results.flat().map(toPublicCandidate) });
 });
@@ -143,22 +179,35 @@ app.get('/track/:id', requireAuth, (c) => {
 });
 
 app.get('/stream/:id', requireAuth, async (c) => {
-  const binding = repo.getBestBinding(c.req.param('id'));
-  if (!binding) return c.json({ error: 'No playable binding found' }, 404);
-  const source = sources.get(binding.sourceInstanceId);
-  if (!source) return c.json({ error: 'Source not registered' }, 502);
-  const candidate = repo.getBindingCandidate(binding);
-  if (!candidate) return c.json({ error: 'Track not found' }, 404);
-  try {
-    const handle = await source.getStream(candidate);
-    return proxyStream(c, handle);
-  } catch (error) {
-    if (error instanceof StreamError) {
-      return c.json({ error: error.message }, error.status);
+  const bindings = repo.getPlayableBindings(c.req.param('id'));
+  if (bindings.length === 0) return c.json({ error: 'No playable binding found' }, 404);
+
+  let lastError: { message: string; status: 400 | 404 | 502 } | null = null;
+  for (const binding of bindings) {
+    const source = sources.get(binding.sourceInstanceId);
+    if (!source) {
+      lastError = { message: 'Source not registered', status: 502 };
+      continue;
     }
-    console.error(error);
-    return c.json({ error: 'Stream unavailable' }, 502);
+    const candidate = repo.getBindingCandidate(binding);
+    if (!candidate) return c.json({ error: 'Track not found' }, 404);
+    try {
+      const handle = await source.getStream(candidate);
+      return proxyStream(c, handle);
+    } catch (error) {
+      if (error instanceof StreamError) {
+        lastError = { message: error.message, status: error.status };
+      } else {
+        console.error(error);
+        lastError = { message: 'Stream unavailable', status: 502 };
+      }
+    }
   }
+
+  return c.json(
+    { error: lastError?.message ?? 'No playable source available' },
+    lastError?.status ?? 502,
+  );
 });
 
 app.get('/playlists', requireAuth, (c) => {

@@ -21,6 +21,29 @@ Override with env:
 PORT=30490 DB_PATH=./data/musehub.sqlite MUSIC_DIR=/music npm run dev
 ```
 
+Optional source configuration:
+
+```sh
+# Existing Netease-compatible mechanism. Enabled by default unless set to false.
+NETEASE_SOURCE_ENABLED=true
+NETEASE_API_BASE=https://netease-cloud-music-api-five-roan-88.vercel.app
+NETEASE_DIRECT_API_BASE=https://music.163.com/api
+
+# Alger/unblock resolver mechanism. Enabled only when this URL is set.
+ALGER_RESOLVER_URL=http://127.0.0.1:30489
+
+# Per-source HTTP timeout.
+SOURCE_REQUEST_TIMEOUT_MS=8000
+ALGER_RESOLVER_TIMEOUT_MS=45000
+```
+
+Source behavior:
+
+- `local` is preferred for files in `MUSIC_DIR`.
+- `netease` uses the existing direct/compatible Netease API flow.
+- `alger` delegates playback resolution to `ALGER_RESOLVER_URL`.
+- `/stream/:id` proxies the selected source and automatically tries lower-priority bindings when one source cannot produce a usable stream.
+
 ## Core Endpoints
 
 ```txt
@@ -73,6 +96,7 @@ Resolve a candidate into a stable MuseHub track:
 ```sh
 curl -X POST "http://127.0.0.1:30490/tracks/resolve" \
   -H "content-type: application/json" \
+  -H "authorization: Bearer SESSION_TOKEN" \
   -d '{
     "title": "Yellow",
     "artist": "Coldplay",
@@ -85,7 +109,8 @@ curl -X POST "http://127.0.0.1:30490/tracks/resolve" \
 Stream through the server:
 
 ```sh
-curl -L "http://127.0.0.1:30490/stream/TRACK_ID"
+curl -L "http://127.0.0.1:30490/stream/TRACK_ID" \
+  -H "authorization: Bearer SESSION_TOKEN"
 ```
 
 Register and call a protected endpoint:
@@ -115,3 +140,4 @@ npm run smoke
 - `/stream/:id` never returns raw source URLs to clients.
 - Passwords are hashed with Node.js `crypto.scrypt`.
 - Playlist, favorites, playback state, and history are scoped by authenticated user.
+- Search tolerates individual source failures; one broken source will not break the full `/search` response.

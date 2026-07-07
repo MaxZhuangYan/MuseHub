@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -17,6 +18,10 @@ fs.mkdirSync(dataDir, { recursive: true });
 fs.writeFileSync(path.join(musicDir, 'Coldplay - Yellow.mp3'), '0123456789abcdefghijklmnopqrstuvwxyz\n');
 fs.writeFileSync(path.join(privateMusicDir, 'secret.mp3'), 'SECRET OUTSIDE MUSIC ROOT\n');
 
+const upstream = createFakeMusicUpstream();
+await listen(upstream);
+const upstreamPort = upstream.address().port;
+const upstreamBase = `http://127.0.0.1:${upstreamPort}`;
 const port = String(39000 + Math.floor(Math.random() * 1000));
 const server = spawn(process.execPath, ['dist/index.js'], {
   cwd: root,
@@ -25,6 +30,10 @@ const server = spawn(process.execPath, ['dist/index.js'], {
     PORT: port,
     DB_PATH: dbPath,
     MUSIC_DIR: musicDir,
+    NETEASE_API_BASE: upstreamBase,
+    NETEASE_DIRECT_API_BASE: upstreamBase,
+    ALGER_RESOLVER_URL: upstreamBase,
+    SOURCE_REQUEST_TIMEOUT_MS: '1000',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -44,7 +53,7 @@ try {
   const health = await getJson(`${base}/health`);
   assert.equal(health.ok, true);
   assert.equal(health.port, Number(port));
-  assert.equal(health.sources.length, 2);
+  assert.equal(health.sources.length, 4);
 
   const search = await getJson(`${base}/search?q=yellow`);
   assert.ok(search.results.length >= 1);
@@ -115,6 +124,18 @@ try {
   const resolvedMock = await postJson(`${base}/tracks/resolve`, mockCandidate, login.token);
   assert.ok(resolvedMock.trackId);
 
+  const neteaseCandidate = search.results.find((candidate) => candidate.sourceInstanceId === 'netease');
+  assert.ok(neteaseCandidate);
+  assert.equal(neteaseCandidate.sourceTrackId, '3001');
+  const resolvedNetease = await postJson(`${base}/tracks/resolve`, neteaseCandidate, login.token);
+  assert.equal(resolvedNetease.trackId, resolvedMock.trackId);
+
+  const algerCandidate = search.results.find((candidate) => candidate.sourceInstanceId === 'alger');
+  assert.ok(algerCandidate);
+  assert.equal(algerCandidate.sourceTrackId, '3001');
+  const resolvedAlger = await postJson(`${base}/tracks/resolve`, algerCandidate, login.token);
+  assert.equal(resolvedAlger.trackId, resolvedMock.trackId);
+
   const resolved = await postJson(`${base}/tracks/resolve`, localCandidate, login.token);
   assert.ok(resolved.trackId);
   assert.equal(resolved.trackId, resolvedMock.trackId);
@@ -134,7 +155,7 @@ try {
   assert.equal(track.artist, 'Coldplay');
   assert.equal(track.normalizedTitle, 'yellow');
   assert.equal(track.normalizedArtist, 'coldplay');
-  assert.equal(track.bindings.length, 2);
+  assert.equal(track.bindings.length, 4);
 
   const stream = await fetch(`${base}/stream/${resolved.trackId}`, {
     headers: { ...authHeaders(login.token), range: 'bytes=0-9' },
@@ -160,6 +181,37 @@ try {
   assert.notEqual(traversalStream.status, 200);
   assert.ok([400, 404, 502].includes(traversalStream.status));
   assert.notEqual(await traversalStream.text(), 'SECRET OUTSIDE MUSIC ROOT\n');
+
+  const fallbackNetease = await postJson(
+    `${base}/tracks/resolve`,
+    {
+      title: 'Resolver Only',
+      artist: 'Fallback Artist',
+      duration: 123000,
+      version: null,
+      sourceInstanceId: 'netease',
+      sourceTrackId: '9001',
+    },
+    login.token,
+  );
+  const fallbackAlger = await postJson(
+    `${base}/tracks/resolve`,
+    {
+      title: 'Resolver Only',
+      artist: 'Fallback Artist',
+      duration: 123000,
+      version: null,
+      sourceInstanceId: 'alger',
+      sourceTrackId: '9001',
+    },
+    login.token,
+  );
+  assert.equal(fallbackAlger.trackId, fallbackNetease.trackId);
+  const algerStream = await fetch(`${base}/stream/${fallbackNetease.trackId}`, {
+    headers: authHeaders(login.token),
+  });
+  assert.equal(algerStream.status, 200);
+  assert.equal(await algerStream.text(), 'ALGER_AUDIO_BYTES');
 
   const playlist = await postJson(
     `${base}/playlist`,
@@ -256,7 +308,89 @@ try {
 } finally {
   server.kill('SIGTERM');
   await onceExit(server);
+  upstream.close();
   fs.rmSync(tempRoot, { recursive: true, force: true });
+}
+
+function createFakeMusicUpstream() {
+  return http.createServer(async (request, response) => {
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (url.pathname === '/search/get' || url.pathname === '/cloudsearch') {
+      return sendJson(response, 200, {
+        result: {
+          songs: [
+            {
+              id: 3001,
+              name: 'Yellow',
+              dt: 266000,
+              ar: [{ id: 1, name: 'Coldplay' }],
+              al: { name: 'Parachutes' },
+            },
+          ],
+        },
+      });
+    }
+    if (
+      url.pathname === '/song/enhance/player/url' ||
+      url.pathname === '/song/url/v1' ||
+      url.pathname === '/song/url'
+    ) {
+      return sendJson(response, 200, {
+        data: [{ url: `http://127.0.0.1:${upstreamPort}/media/netease.mp3` }],
+      });
+    }
+    if (url.pathname === '/unblock-music') {
+      await readBody(request);
+      return sendJson(response, 200, {
+        code: 200,
+        data: {
+          data: {
+            url: `http://127.0.0.1:${upstreamPort}/media/alger.mp3`,
+          },
+        },
+      });
+    }
+    if (url.pathname === '/media/netease.mp3') {
+      return sendAudio(response, 'NETEASE_AUDIO_BYTES');
+    }
+    if (url.pathname === '/media/alger.mp3') {
+      return sendAudio(response, 'ALGER_AUDIO_BYTES');
+    }
+    return sendJson(response, 404, { error: 'not found' });
+  });
+}
+
+function sendAudio(response, body) {
+  response.writeHead(200, {
+    'content-type': 'audio/mpeg',
+    'accept-ranges': 'bytes',
+    'content-length': Buffer.byteLength(body),
+  });
+  response.end(body);
+}
+
+function sendJson(response, statusCode, data) {
+  const body = JSON.stringify(data);
+  response.writeHead(statusCode, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+  });
+  response.end(body);
+}
+
+function readBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    request.on('data', (chunk) => chunks.push(chunk));
+    request.on('end', () => resolve(Buffer.concat(chunks)));
+    request.on('error', reject);
+  });
+}
+
+function listen(server) {
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
 }
 
 async function waitForHealth(base) {

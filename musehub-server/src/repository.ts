@@ -172,6 +172,17 @@ export class Repository {
     );
   }
 
+  getPlayableBindings(trackId: string): SourceBinding[] {
+    const resolved = this.resolveAlias(trackId);
+    return this.db
+      .prepare(
+        `SELECT * FROM track_source_bindings
+         WHERE trackId = ? AND status != 'dead'
+         ORDER BY priority ASC, matchConfidence DESC, createdAt ASC`,
+      )
+      .all(resolved) as SourceBinding[];
+  }
+
   getBindingCandidate(binding: SourceBinding): TrackCandidate | null {
     const track = this.getTrack(binding.trackId);
     if (!track) return null;
@@ -435,6 +446,8 @@ export class Repository {
 
 function defaultPriority(sourceInstanceId: string): number {
   if (sourceInstanceId === 'local') return 10;
+  if (sourceInstanceId === 'netease') return 50;
+  if (sourceInstanceId === 'alger') return 80;
   return 100;
 }
 
