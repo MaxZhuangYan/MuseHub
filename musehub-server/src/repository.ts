@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import type { Db } from './db.js';
 import { normalizeTrackMetadata } from './normalize.js';
+import { HttpError } from './types.js';
 import type {
   BindingStatus,
   ResolvedTrack,
@@ -51,13 +52,19 @@ export class Repository {
   getSessionUser(token: string): User | null {
     const row = this.db
       .prepare(
-        `SELECT u.*
+        `SELECT u.*, s.expiresAt AS sessionExpiresAt
          FROM sessions s
          JOIN users u ON u.id = s.userId
-         WHERE s.token = ? AND s.expiresAt > CURRENT_TIMESTAMP`,
+         WHERE s.token = ?`,
       )
-      .get(token) as User | undefined;
-    return row ?? null;
+      .get(token) as (User & { sessionExpiresAt: string }) | undefined;
+    if (!row) return null;
+    if (isExpired(row.sessionExpiresAt)) {
+      this.deleteSession(token);
+      return null;
+    }
+    const { sessionExpiresAt: _sessionExpiresAt, ...user } = row;
+    return user;
   }
 
   deleteSession(token: string): void {
@@ -65,7 +72,16 @@ export class Repository {
   }
 
   deleteExpiredSessions(): void {
-    this.db.prepare('DELETE FROM sessions WHERE expiresAt <= CURRENT_TIMESTAMP').run();
+    const rows = this.db.prepare('SELECT token, expiresAt FROM sessions').all() as Array<{
+      token: string;
+      expiresAt: string;
+    }>;
+    const expired = rows.filter((row) => isExpired(row.expiresAt));
+    const remove = this.db.prepare('DELETE FROM sessions WHERE token = ?');
+    const run = this.db.transaction(() => {
+      for (const row of expired) remove.run(row.token);
+    });
+    run();
   }
 
   resolveTrack(candidate: TrackCandidate): { trackId: string; created: boolean } {
@@ -169,6 +185,12 @@ export class Repository {
     };
   }
 
+  trackExists(trackId: string): boolean {
+    const resolvedTrackId = this.resolveAlias(trackId);
+    const row = this.db.prepare('SELECT id FROM tracks WHERE id = ?').get(resolvedTrackId);
+    return row != null;
+  }
+
   listPlaylists(userId: string): unknown[] {
     const playlists = this.db
       .prepare('SELECT * FROM playlists WHERE userId = ? ORDER BY createdAt DESC')
@@ -203,6 +225,7 @@ export class Repository {
 
   addPlaylistTrack(userId: string, playlistId: string, trackId: string): boolean {
     const resolvedTrackId = this.resolveAlias(trackId);
+    if (!this.trackExists(resolvedTrackId)) return false;
     const playlist = this.db
       .prepare('SELECT id FROM playlists WHERE id = ? AND userId = ?')
       .get(playlistId, userId);
@@ -240,9 +263,11 @@ export class Repository {
   }
 
   setFavorite(userId: string, trackId: string): void {
+    const resolvedTrackId = this.resolveAlias(trackId);
+    if (!this.trackExists(resolvedTrackId)) throw new HttpError('Track not found', 404);
     this.db
       .prepare('INSERT OR IGNORE INTO favorites (userId, trackId) VALUES (?, ?)')
-      .run(userId, this.resolveAlias(trackId));
+      .run(userId, resolvedTrackId);
   }
 
   deleteFavorite(userId: string, trackId: string): void {
@@ -272,6 +297,7 @@ export class Repository {
 
   patchPlaybackState(userId: string, trackId: string, positionMs: number): void {
     const resolvedTrackId = this.resolveAlias(trackId);
+    if (!this.trackExists(resolvedTrackId)) throw new HttpError('Track not found', 404);
     this.db
       .prepare(
         `INSERT INTO playback_state (userId, trackId, positionMs, updatedAt)
@@ -292,6 +318,8 @@ export class Repository {
     durationPlayed: number;
   }): string {
     const id = nanoid();
+    const resolvedTrackId = this.resolveAlias(input.trackId);
+    if (!this.trackExists(resolvedTrackId)) throw new HttpError('Track not found', 404);
     this.db
       .prepare(
         `INSERT INTO playback_history (id, userId, trackId, startedAt, endedAt, durationPlayed)
@@ -300,7 +328,7 @@ export class Repository {
       .run(
         id,
         input.userId,
-        this.resolveAlias(input.trackId),
+        resolvedTrackId,
         input.startedAt,
         input.endedAt ?? null,
         input.durationPlayed,
@@ -408,4 +436,12 @@ export class Repository {
 function defaultPriority(sourceInstanceId: string): number {
   if (sourceInstanceId === 'local') return 10;
   return 100;
+}
+
+function isExpired(value: string): boolean {
+  const asNumber = Number(value);
+  const expiresAt = Number.isFinite(asNumber) && value.trim() !== ''
+    ? asNumber
+    : Date.parse(value);
+  return !Number.isFinite(expiresAt) || expiresAt <= Date.now();
 }

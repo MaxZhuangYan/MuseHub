@@ -76,3 +76,13 @@ export class StreamError extends Error {
     this.name = 'StreamError';
   }
 }
+
+export class HttpError extends Error {
+  constructor(
+    message: string,
+    public readonly status: 400 | 401 | 404 | 409 | 413 | 422 | 500 = 500,
+  ) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}

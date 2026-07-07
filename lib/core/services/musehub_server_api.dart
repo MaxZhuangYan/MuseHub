@@ -125,6 +125,11 @@ class MuseHubServerApi {
         'POST' => await _client
             .post(uri, headers: headers, body: jsonEncode(body ?? const {}))
             .timeout(_timeout),
+        'PATCH' => await _client
+            .patch(uri, headers: headers, body: jsonEncode(body ?? const {}))
+            .timeout(_timeout),
+        'DELETE' =>
+          await _client.delete(uri, headers: headers).timeout(_timeout),
         _ => throw MuseHubServerException('Unsupported method $method'),
       };
       final decoded = response.body.isEmpty

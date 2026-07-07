@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import {
   createSessionToken,
   hashPassword,
@@ -16,7 +16,13 @@ import { LocalSource } from './sources/local.js';
 import { MockNeteaseSource } from './sources/mock-netease.js';
 import { SourceRegistry } from './sources/registry.js';
 import { proxyStream } from './stream.js';
-import { StreamError, type PublicUser, type TrackCandidate, type User } from './types.js';
+import {
+  HttpError,
+  StreamError,
+  type PublicUser,
+  type TrackCandidate,
+  type User,
+} from './types.js';
 
 const port = Number(process.env.PORT ?? 30490);
 const dbPath = process.env.DB_PATH ?? './data/musehub.sqlite';
@@ -38,6 +44,13 @@ type AppEnv = {
 
 const app = new Hono<AppEnv>();
 app.use('*', cors());
+app.onError((error, c) => {
+  if (error instanceof HttpError) {
+    return c.json({ error: error.message }, error.status);
+  }
+  console.error(error);
+  return c.json({ error: 'Internal server error' }, 500);
+});
 
 const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = bearerToken(c.req.header('authorization'));
@@ -72,11 +85,11 @@ app.get('/search', async (c) => {
 });
 
 app.post('/auth/register', async (c) => {
-  const body = await c.req.json<{
+  const body = await readJson<{
     email?: string;
     password?: string;
     displayName?: string | null;
-  }>();
+  }>(c);
   const email = normalizeEmail(body.email ?? '');
   const password = body.password ?? '';
   if (!isValidEmail(email)) return c.json({ error: 'valid email is required' }, 400);
@@ -95,7 +108,7 @@ app.post('/auth/register', async (c) => {
 });
 
 app.post('/auth/login', async (c) => {
-  const body = await c.req.json<{ email?: string; password?: string }>();
+  const body = await readJson<{ email?: string; password?: string }>(c);
   const email = normalizeEmail(body.email ?? '');
   const password = body.password ?? '';
   const user = repo.getUserByEmail(email);
@@ -116,7 +129,7 @@ app.get('/me', requireAuth, (c) => {
 });
 
 app.post('/tracks/resolve', requireAuth, async (c) => {
-  const candidate = await c.req.json<TrackCandidate>();
+  const candidate = await readJson<TrackCandidate>(c);
   const error = validateCandidate(candidate);
   if (error) return c.json({ error }, 400);
   const result = repo.resolveTrack(candidate);
@@ -153,24 +166,28 @@ app.get('/playlists', requireAuth, (c) => {
 });
 
 app.post('/playlist', requireAuth, async (c) => {
-  const body = await c.req.json<{ name?: string }>();
+  const body = await readJson<{ name?: string }>(c);
   const name = body.name?.trim();
   if (!name) return c.json({ error: 'name is required' }, 400);
   return c.json(repo.createPlaylist(c.get('user').id, name), 201);
 });
 
 app.post('/playlist/:id/add', requireAuth, async (c) => {
-  const body = await c.req.json<{ trackId?: string }>();
+  const body = await readJson<{ trackId?: string }>(c);
   if (!body.trackId) return c.json({ error: 'trackId is required' }, 400);
+  if (!repo.trackExists(body.trackId)) return c.json({ error: 'Track not found' }, 404);
   const ok = repo.addPlaylistTrack(c.get('user').id, c.req.param('id'), body.trackId);
   if (!ok) return c.json({ error: 'Playlist not found' }, 404);
   return c.json({ ok: true });
 });
 
 app.post('/playlist/:id/reorder', requireAuth, async (c) => {
-  const body = await c.req.json<{ trackIds?: string[] }>();
+  const body = await readJson<{ trackIds?: string[] }>(c);
   if (!Array.isArray(body.trackIds)) {
     return c.json({ error: 'trackIds must be an array' }, 400);
+  }
+  if (body.trackIds.some((trackId) => !repo.trackExists(trackId))) {
+    return c.json({ error: 'Track not found' }, 404);
   }
   const ok = repo.reorderPlaylist(c.get('user').id, c.req.param('id'), body.trackIds);
   if (!ok) return c.json({ error: 'Playlist not found' }, 404);
@@ -178,6 +195,7 @@ app.post('/playlist/:id/reorder', requireAuth, async (c) => {
 });
 
 app.post('/favorite/:id', requireAuth, (c) => {
+  if (!repo.trackExists(c.req.param('id'))) return c.json({ error: 'Track not found' }, 404);
   repo.setFavorite(c.get('user').id, c.req.param('id'));
   return c.json({ ok: true });
 });
@@ -196,30 +214,32 @@ app.get('/playback-state/latest', requireAuth, (c) => {
 });
 
 app.patch('/playback-state', requireAuth, async (c) => {
-  const body = await c.req.json<{
+  const body = await readJson<{
     trackId?: string;
     positionMs?: number;
-  }>();
+  }>(c);
   if (!body.trackId || typeof body.positionMs !== 'number') {
     return c.json({ error: 'trackId and positionMs are required' }, 400);
   }
+  if (!repo.trackExists(body.trackId)) return c.json({ error: 'Track not found' }, 404);
   repo.patchPlaybackState(c.get('user').id, body.trackId, body.positionMs);
   return c.json({ ok: true });
 });
 
 app.post('/history', requireAuth, async (c) => {
-  const body = await c.req.json<{
+  const body = await readJson<{
     trackId?: string;
     startedAt?: string;
     endedAt?: string | null;
     durationPlayed?: number;
-  }>();
+  }>(c);
   if (!body.trackId || !body.startedAt || typeof body.durationPlayed !== 'number') {
     return c.json(
       { error: 'trackId, startedAt, and durationPlayed are required' },
       400,
     );
   }
+  if (!repo.trackExists(body.trackId)) return c.json({ error: 'Track not found' }, 404);
   const id = repo.appendHistory({
     userId: c.get('user').id,
     trackId: body.trackId,
@@ -249,6 +269,14 @@ function validateCandidate(candidate: Partial<TrackCandidate>): string | null {
   return null;
 }
 
+async function readJson<T>(c: Context): Promise<T> {
+  try {
+    return await c.req.json<T>();
+  } catch {
+    throw new HttpError('Invalid JSON body', 400);
+  }
+}
+
 function toPublicCandidate(candidate: TrackCandidate): TrackCandidate {
   return {
     title: candidate.title,
@@ -268,7 +296,7 @@ function bearerToken(header: string | undefined): string | null {
 function issueSession(userId: string): string {
   repo.deleteExpiredSessions();
   const token = createSessionToken();
-  const expiresAt = new Date(Date.now() + sessionTtlDays * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = String(Date.now() + sessionTtlDays * 24 * 60 * 60 * 1000);
   repo.createSession(userId, token, expiresAt);
   return token;
 }

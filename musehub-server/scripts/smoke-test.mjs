@@ -3,12 +3,14 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 
 const root = process.cwd();
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'musehub-smoke-'));
 const musicDir = path.join(tempRoot, 'music');
 const privateMusicDir = path.join(tempRoot, 'music_private');
 const dataDir = path.join(tempRoot, 'data');
+const dbPath = path.join(dataDir, 'musehub.sqlite');
 fs.mkdirSync(musicDir, { recursive: true });
 fs.mkdirSync(privateMusicDir, { recursive: true });
 fs.mkdirSync(dataDir, { recursive: true });
@@ -21,7 +23,7 @@ const server = spawn(process.execPath, ['dist/index.js'], {
   env: {
     ...process.env,
     PORT: port,
-    DB_PATH: path.join(dataDir, 'musehub.sqlite'),
+    DB_PATH: dbPath,
     MUSIC_DIR: musicDir,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -78,6 +80,13 @@ try {
   });
   assert.equal(duplicate.status, 409);
 
+  const invalidJson = await fetch(`${base}/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{bad json',
+  });
+  assert.equal(invalidJson.status, 400);
+
   const login = await postJson(`${base}/auth/login`, {
     email: 'SMOKE@example.com',
     password: 'password123',
@@ -87,6 +96,14 @@ try {
 
   const me = await getJson(`${base}/me`, login.token);
   assert.equal(me.user.email, 'smoke@example.com');
+
+  const expiredToken = 'expired-smoke-token';
+  const db = new Database(dbPath);
+  db.prepare('INSERT INTO sessions (token, userId, expiresAt) VALUES (?, ?, ?)')
+    .run(expiredToken, auth.user.id, String(Date.now() - 1000));
+  db.close();
+  const expiredMe = await fetch(`${base}/me`, { headers: authHeaders(expiredToken) });
+  assert.equal(expiredMe.status, 401);
 
   const secondAuth = await postJson(`${base}/auth/register`, {
     email: 'other@example.com',
@@ -150,6 +167,12 @@ try {
     login.token,
   );
   assert.ok(playlist.id);
+  const missingTrackAdd = await fetch(`${base}/playlist/${playlist.id}/add`, {
+    method: 'POST',
+    headers: authHeaders(login.token),
+    body: JSON.stringify({ trackId: 'missing-track-id' }),
+  });
+  assert.equal(missingTrackAdd.status, 404);
   await postJson(
     `${base}/playlist/${playlist.id}/add`,
     { trackId: resolved.trackId },
@@ -167,6 +190,11 @@ try {
     method: 'POST',
     headers: authHeaders(login.token),
   });
+  const missingFavorite = await fetch(`${base}/favorite/missing-track-id`, {
+    method: 'POST',
+    headers: authHeaders(login.token),
+  });
+  assert.equal(missingFavorite.status, 404);
   const favorites = await getJson(`${base}/favorites`, login.token);
   assert.equal(favorites.favorites.length, 1);
   const secondFavorites = await getJson(`${base}/favorites`, secondAuth.token);
@@ -178,6 +206,12 @@ try {
     body: JSON.stringify({ trackId: resolved.trackId, positionMs: 12345 }),
   });
   assert.equal(playbackPatch.status, 200);
+  const missingPlayback = await fetch(`${base}/playback-state`, {
+    method: 'PATCH',
+    headers: authHeaders(login.token),
+    body: JSON.stringify({ trackId: 'missing-track-id', positionMs: 1 }),
+  });
+  assert.equal(missingPlayback.status, 404);
   const playback = await getJson(`${base}/playback-state/latest`, login.token);
   assert.equal(playback.playbackState.trackId, resolved.trackId);
   assert.equal(playback.playbackState.positionMs, 12345);
@@ -195,6 +229,16 @@ try {
     login.token,
   );
   assert.ok(history.id);
+  const missingHistory = await fetch(`${base}/history`, {
+    method: 'POST',
+    headers: authHeaders(login.token),
+    body: JSON.stringify({
+      trackId: 'missing-track-id',
+      startedAt: new Date('2026-01-01T00:00:00Z').toISOString(),
+      durationPlayed: 1,
+    }),
+  });
+  assert.equal(missingHistory.status, 404);
   const historyList = await getJson(`${base}/history`, login.token);
   assert.equal(historyList.history.length, 1);
   const secondHistory = await getJson(`${base}/history`, secondAuth.token);
