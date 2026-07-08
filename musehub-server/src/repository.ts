@@ -288,7 +288,7 @@ export class Repository {
   }
 
   listFavorites(userId: string): unknown[] {
-    return this.db
+    const rows = this.db
       .prepare(
         `SELECT f.createdAt, m.trackId AS id, m.title, m.artist, m.duration, m.version
          FROM favorites f
@@ -296,7 +296,18 @@ export class Repository {
          WHERE f.userId = ?
          ORDER BY f.createdAt DESC`,
       )
-      .all(userId);
+      .all(userId) as Array<{
+      createdAt: string;
+      id: string;
+      title: string;
+      artist: string;
+      duration: number | null;
+      version: string | null;
+    }>;
+    return rows.map((row) => ({
+      ...row,
+      bindings: this.getBindings(row.id),
+    }));
   }
 
   getPlaybackState(userId: string): unknown | null {

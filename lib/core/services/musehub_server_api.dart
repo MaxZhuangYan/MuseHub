@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/muse_user.dart';
+import '../models/song.dart';
 import 'music_api.dart';
 
 class MuseHubAuthResult {
@@ -23,6 +24,85 @@ class MuseHubServerException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class MuseHubResolvedTrack {
+  const MuseHubResolvedTrack({
+    required this.trackId,
+    required this.created,
+  });
+
+  factory MuseHubResolvedTrack.fromJson(Map<String, dynamic> json) {
+    return MuseHubResolvedTrack(
+      trackId: json['trackId']?.toString() ?? '',
+      created: json['created'] == true,
+    );
+  }
+
+  final String trackId;
+  final bool created;
+}
+
+class MuseHubFavoriteTrack {
+  const MuseHubFavoriteTrack({
+    required this.trackId,
+    required this.title,
+    required this.artist,
+    this.durationMs,
+    this.sourceInstanceId,
+    this.sourceTrackId,
+  });
+
+  factory MuseHubFavoriteTrack.fromJson(Map<String, dynamic> json) {
+    final bindings = (json['bindings'] as List?)
+            ?.whereType<Map<String, dynamic>>()
+            .toList() ??
+        const [];
+    final preferredBinding = _preferredBinding(bindings);
+    return MuseHubFavoriteTrack(
+      trackId: json['id']?.toString() ?? json['trackId']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      artist: json['artist']?.toString() ?? '',
+      durationMs: _readNullableInt(json['duration']),
+      sourceInstanceId: preferredBinding?['sourceInstanceId']?.toString(),
+      sourceTrackId: preferredBinding?['sourceTrackId']?.toString(),
+    );
+  }
+
+  final String trackId;
+  final String title;
+  final String artist;
+  final int? durationMs;
+  final String? sourceInstanceId;
+  final String? sourceTrackId;
+
+  int? get neteaseSongId {
+    final source = sourceInstanceId;
+    if (source != 'netease' && source != 'alger' && source != 'mock-netease') {
+      return null;
+    }
+    final id = int.tryParse(sourceTrackId ?? '');
+    if (id == null || id == 0) return null;
+    return id;
+  }
+
+  static Map<String, dynamic>? _preferredBinding(
+    List<Map<String, dynamic>> bindings,
+  ) {
+    const order = ['netease', 'alger', 'mock-netease', 'local'];
+    for (final source in order) {
+      for (final binding in bindings) {
+        if (binding['sourceInstanceId'] == source) return binding;
+      }
+    }
+    return bindings.isEmpty ? null : bindings.first;
+  }
+
+  static int? _readNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse('$value');
+  }
 }
 
 class MuseHubServerApi {
@@ -87,6 +167,60 @@ class MuseHubServerApi {
     await _requestJson(
       '/auth/logout',
       method: 'POST',
+      token: token,
+    );
+  }
+
+  Future<MuseHubResolvedTrack> resolveSong(String token, Song song) async {
+    final data = await _requestJson(
+      '/tracks/resolve',
+      method: 'POST',
+      token: token,
+      body: {
+        'title': song.name,
+        'artist': song.artistText,
+        'duration': song.durationMs,
+        'version': null,
+        'sourceInstanceId': 'netease',
+        'sourceTrackId': '${song.id}',
+      },
+    );
+    final resolved = MuseHubResolvedTrack.fromJson(data);
+    if (resolved.trackId.isEmpty) {
+      throw const MuseHubServerException('Invalid track response');
+    }
+    return resolved;
+  }
+
+  Future<List<MuseHubFavoriteTrack>> favorites(String token) async {
+    final data = await _requestJson(
+      '/favorites',
+      method: 'GET',
+      token: token,
+    );
+    final items = data['favorites'];
+    if (items is! List) {
+      throw const MuseHubServerException('Invalid favorites response');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(MuseHubFavoriteTrack.fromJson)
+        .where((item) => item.trackId.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> addFavorite(String token, String trackId) async {
+    await _requestJson(
+      '/favorite/$trackId',
+      method: 'POST',
+      token: token,
+    );
+  }
+
+  Future<void> removeFavorite(String token, String trackId) async {
+    await _requestJson(
+      '/favorite/$trackId',
+      method: 'DELETE',
       token: token,
     );
   }

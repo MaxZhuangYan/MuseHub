@@ -249,6 +249,8 @@ try {
   assert.equal(missingFavorite.status, 404);
   const favorites = await getJson(`${base}/favorites`, login.token);
   assert.equal(favorites.favorites.length, 1);
+  assert.ok(Array.isArray(favorites.favorites[0].bindings));
+  assert.equal(favorites.favorites[0].bindings.length, 4);
   const secondFavorites = await getJson(`${base}/favorites`, secondAuth.token);
   assert.equal(secondFavorites.favorites.length, 0);
 
