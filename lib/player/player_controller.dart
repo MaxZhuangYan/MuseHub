@@ -214,20 +214,12 @@ class PlayerController extends ChangeNotifier {
         // here too, just_audio's request can come back empty/blocked even
         // though resolution "succeeded". Same convention as CoverArt.
         //
-        // preload: false — setUrl() with preload:true (the default) makes
-        // the player actually connect and buffer before returning. Some
-        // CDN edges respond much slower to a request carrying these custom
-        // headers, which turned this into a real, reproducible >12s hang
-        // instead of a quick failure. Deferring the fetch to play() keeps
-        // setUrl() fast regardless, and the existing isLoading/stall-
-        // recovery UI already covers a slow-to-start play().
         await _audio
             .setUrl(
               candidate.url,
               headers: _audioStreamHeaders,
-              preload: false,
             )
-            .timeout(const Duration(seconds: 12));
+            .timeout(const Duration(seconds: 20));
         _currentAudioSource = candidate.source;
         _api.confirmWorkingSource(song.id, candidate);
         return;
