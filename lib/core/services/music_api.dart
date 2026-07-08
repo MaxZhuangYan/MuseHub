@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/home_snapshot.dart';
@@ -39,9 +40,11 @@ class MusicApi {
       'https://netease-cloud-music-api-five-roan-88.vercel.app';
   static const defaultResolverBaseUrl = '';
   static const _requestTimeout = Duration(seconds: 8);
+  static const _probeTimeout = Duration(seconds: 6);
   static const _resolverTimeout = Duration(seconds: 45);
   static const _cacheTtl = Duration(minutes: 10);
   static const _maxAttempts = 3;
+  static const _minLikelyAudioBytes = 128 * 1024;
 
   final http.Client _client;
   final Map<String, _CachedJson> _cache = {};
@@ -117,46 +120,40 @@ class MusicApi {
 
   Future<List<Song>> searchSongs(String keyword,
       {int limit = 30, int offset = 0}) async {
-    final data = await _getWithFallback(
-      _usesDirectNetease
-          ? [
-              _ApiEndpoint(
-                '/search/get',
-                query: {
-                  's': keyword,
-                  'type': '1',
-                  'limit': '$limit',
-                  'offset': '$offset',
-                },
-              ),
-              _ApiEndpoint(
-                '/cloudsearch',
-                query: {
-                  'keywords': keyword,
-                  'type': '1',
-                  'limit': '$limit',
-                  'offset': '$offset',
-                },
-                useLegacyBase: true,
-              ),
-            ]
-          : [
-              _ApiEndpoint(
-                '/cloudsearch',
-                query: {
-                  'keywords': keyword,
-                  'type': '1',
-                  'limit': '$limit',
-                  'offset': '$offset',
-                },
-              ),
-            ],
-    );
-    final songs = (((data['result'] as Map?)?['songs'] as List?) ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(Song.fromJson)
-        .where((song) => song.id != 0)
-        .toList();
+    final endpoints = _usesDirectNetease
+        ? [
+            _ApiEndpoint(
+              '/search/get',
+              query: {
+                's': keyword,
+                'type': '1',
+                'limit': '$limit',
+                'offset': '$offset',
+              },
+            ),
+            _ApiEndpoint(
+              '/cloudsearch',
+              query: {
+                'keywords': keyword,
+                'type': '1',
+                'limit': '$limit',
+                'offset': '$offset',
+              },
+              useLegacyBase: true,
+            ),
+          ]
+        : [
+            _ApiEndpoint(
+              '/cloudsearch',
+              query: {
+                'keywords': keyword,
+                'type': '1',
+                'limit': '$limit',
+                'offset': '$offset',
+              },
+            ),
+          ];
+    final songs = await _searchSongsFromAll(endpoints);
     return _hydrateMissingSongDetails(songs);
   }
 
@@ -196,6 +193,13 @@ class MusicApi {
     if (_usesDirectNetease) {
       final directUrl = await _resolveWithDirectNetease(song);
       if (directUrl != null) return directUrl;
+
+      final compatibleUrl = await _resolveWithCompatibleApi(
+        song,
+        level: level,
+        useLegacyBase: true,
+      );
+      if (compatibleUrl != null) return compatibleUrl;
     } else {
       final compatibleUrl = await _resolveWithCompatibleApi(song, level: level);
       if (compatibleUrl != null) return compatibleUrl;
@@ -231,7 +235,7 @@ class MusicApi {
       },
     );
     if (data == null) return null;
-    return _readSongUrl(data);
+    return _validatedAudioUrl(_readSongUrl(data));
   }
 
   Future<String?> _resolveWithCompatibleApi(
@@ -251,7 +255,8 @@ class MusicApi {
       );
       if (data != null) {
         final url = _readSongUrl(data);
-        if (url != null) return url;
+        final validatedUrl = await _validatedAudioUrl(url);
+        if (validatedUrl != null) return validatedUrl;
       }
     }
 
@@ -261,7 +266,7 @@ class MusicApi {
       useLegacyBase: useLegacyBase,
     );
     if (data == null) return null;
-    return _readSongUrl(data);
+    return _validatedAudioUrl(_readSongUrl(data));
   }
 
   Future<String?> _resolveWithAlgerFallback(Song song) async {
@@ -270,7 +275,14 @@ class MusicApi {
     final uri = Uri.parse('$_resolverBaseUrl/unblock-music');
     final payload = {
       'id': song.id,
-      'enabledSources': const ['pyncmd', 'kugou', 'kuwo', 'migu'],
+      'enabledSources': const [
+        'pyncmd',
+        'kugou',
+        'kuwo',
+        'migu',
+        'qq',
+        'bilibili',
+      ],
       'songData': {
         'name': song.name,
         'artists': song.artists
@@ -309,7 +321,7 @@ class MusicApi {
           name: 'MuseHub.MusicApi',
         );
       }
-      return resolvedUrl;
+      return _validatedAudioUrl(resolvedUrl);
     } on Object catch (error) {
       developer.log(
         'Alger fallback failed for ${song.id}: $error',
@@ -318,6 +330,102 @@ class MusicApi {
       return null;
     }
   }
+
+  Future<List<Song>> _searchSongsFromAll(List<_ApiEndpoint> endpoints) async {
+    final byId = <int, Song>{};
+    Object? lastError;
+
+    for (final endpoint in endpoints) {
+      try {
+        final data = await _get(
+          endpoint.path,
+          query: endpoint.query,
+          useLegacyBase: endpoint.useLegacyBase,
+        );
+        final songs =
+            (((data['result'] as Map?)?['songs'] as List?) ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .map(Song.fromJson)
+                .where((song) => song.id != 0);
+        for (final song in songs) {
+          byId.putIfAbsent(song.id, () => song);
+        }
+      } on Object catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (byId.isEmpty && lastError != null) {
+      if (lastError is MusicApiException) throw lastError;
+      throw MusicApiException('$lastError');
+    }
+    return byId.values.toList();
+  }
+
+  Future<String?> _validatedAudioUrl(String? url) async {
+    if (url == null || url.isEmpty) return null;
+    if (kIsWeb) return url;
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
+    if (await _looksPlayableAudioUrl(uri)) return url;
+    developer.log(
+      'Rejected non-playable audio URL: $url',
+      name: 'MuseHub.MusicApi',
+    );
+    return null;
+  }
+
+  Future<bool> _looksPlayableAudioUrl(Uri uri) async {
+    try {
+      final response = await _client
+          .head(uri, headers: _audioProbeHeaders)
+          .timeout(_probeTimeout);
+      if (_isLikelyAudioResponse(response.statusCode, response.headers)) {
+        return true;
+      }
+    } on Object {
+      // Some music CDNs reject HEAD; fall through to a byte-range probe.
+    }
+
+    try {
+      final request = http.Request('GET', uri)
+        ..headers.addAll(_audioProbeHeaders)
+        ..headers['range'] = 'bytes=0-0';
+      final response = await _client.send(request).timeout(_probeTimeout);
+      await response.stream.drain<void>();
+      return _isLikelyAudioResponse(response.statusCode, response.headers);
+    } on Object {
+      return false;
+    }
+  }
+
+  bool _isLikelyAudioResponse(int statusCode, Map<String, String> headers) {
+    if (statusCode < 200 || statusCode >= 300) return false;
+    final contentType = (headers['content-type'] ?? '').toLowerCase();
+    if (contentType.contains('json') ||
+        contentType.contains('text/html') ||
+        contentType.startsWith('text/plain')) {
+      return false;
+    }
+    final contentLength = int.tryParse(headers['content-length'] ?? '');
+    if (contentLength != null &&
+        contentLength > 0 &&
+        contentLength < _minLikelyAudioBytes) {
+      return false;
+    }
+    return contentType.isEmpty ||
+        contentType.startsWith('audio/') ||
+        contentType.contains('octet-stream') ||
+        contentType.contains('mpegurl') ||
+        contentType.contains('mp4') ||
+        contentType.contains('flac');
+  }
+
+  static const Map<String, String> _audioProbeHeaders = {
+    'accept': '*/*',
+    'user-agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Safari/537.36',
+  };
 
   String? _readResolvedUrl(Map<String, dynamic> data) {
     final candidates = [

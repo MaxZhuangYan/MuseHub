@@ -5,8 +5,8 @@ import match from '@unblockneteasemusic/server';
 const DEFAULT_PORT = 30489;
 const DEFAULT_HOST = '0.0.0.0';
 const DEFAULT_NETEASE_API = 'https://music.163.com/api';
-const ALL_PLATFORMS = ['pyncmd', 'kugou', 'kuwo', 'migu'];
-const SOURCE_PRIORITY = ['pyncmd', 'kugou', 'kuwo', 'migu'];
+const ALL_PLATFORMS = ['pyncmd', 'kugou', 'kuwo', 'migu', 'qq', 'bilibili'];
+const SOURCE_PRIORITY = ['pyncmd', 'kugou', 'kuwo', 'migu', 'qq', 'bilibili'];
 const MIN_AUDIO_BYTES = Number.parseInt(process.env.MIN_AUDIO_BYTES || `${512 * 1024}`, 10);
 const MAX_CANDIDATES = Number.parseInt(process.env.MAX_CANDIDATES || '6', 10);
 const neteaseApiBaseUrl = (process.env.NETEASE_API || DEFAULT_NETEASE_API).replace(/\/+$/, '');
@@ -119,6 +119,51 @@ function requestHead(url, redirectCount = 0) {
   });
 }
 
+function requestRangeProbe(url, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirectCount > 4) {
+      reject(new Error('Too many redirects'));
+      return;
+    }
+
+    const parsedUrl = new URL(url);
+    const client = parsedUrl.protocol === 'https:' ? https : http;
+    const request = client.request(
+      parsedUrl,
+      {
+        method: 'GET',
+        timeout: 8000,
+        headers: {
+          'accept': '*/*',
+          'range': 'bytes=0-0',
+          'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Safari/537.36',
+        },
+      },
+      (response) => {
+        const location = response.headers.location;
+        if (
+          location &&
+          [301, 302, 303, 307, 308].includes(response.statusCode || 0)
+        ) {
+          response.resume();
+          resolve(requestRangeProbe(new URL(location, parsedUrl).toString(), redirectCount + 1));
+          return;
+        }
+        response.resume();
+        resolve({
+          statusCode: response.statusCode || 0,
+          contentLength: Number.parseInt(`${response.headers['content-length'] || 0}`, 10),
+          contentType: `${response.headers['content-type'] || ''}`,
+        });
+      },
+    );
+    request.on('timeout', () => request.destroy(new Error('range probe timeout')));
+    request.on('error', reject);
+    request.end();
+  });
+}
+
 function getJson(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     if (redirectCount > 4) {
@@ -183,25 +228,55 @@ async function isUsableAudio(data) {
 
   try {
     const head = await requestHead(data.url);
-    if (head.statusCode < 200 || head.statusCode >= 300) {
-      return { ok: false, reason: `bad status: ${head.statusCode}` };
-    }
-    if (head.contentType && !/^audio\//i.test(head.contentType)) {
-      return { ok: false, reason: `not audio: ${head.contentType}` };
-    }
-    if (head.contentLength > 0 && head.contentLength < MIN_AUDIO_BYTES) {
-      return {
-        ok: false,
-        reason: `remote audio too small: ${head.contentLength} bytes`,
-      };
-    }
+    const validation = validateAudioProbe(head);
+    if (validation.ok) return validation;
+  } catch (_) {
+    // Some music CDNs reject HEAD; fall through to a byte-range probe.
+  }
+
+  try {
+    const probe = await requestRangeProbe(data.url);
+    const validation = validateAudioProbe(probe);
+    if (!validation.ok) return validation;
     return { ok: true };
   } catch (error) {
     return {
       ok: false,
-      reason: error instanceof Error ? error.message : 'HEAD failed',
+      reason: error instanceof Error ? error.message : 'audio probe failed',
     };
   }
+}
+
+function validateAudioProbe(probe) {
+  if (probe.statusCode < 200 || probe.statusCode >= 300) {
+    return { ok: false, reason: `bad status: ${probe.statusCode}` };
+  }
+  const contentType = `${probe.contentType || ''}`.toLowerCase();
+  if (
+    contentType.includes('json') ||
+    contentType.includes('text/html') ||
+    contentType.startsWith('text/plain')
+  ) {
+    return { ok: false, reason: `not audio: ${probe.contentType}` };
+  }
+  if (probe.contentLength > 0 && probe.contentLength < MIN_AUDIO_BYTES) {
+    return {
+      ok: false,
+      reason: `remote audio too small: ${probe.contentLength} bytes`,
+    };
+  }
+  if (contentType) {
+    const likelyAudio =
+      contentType.startsWith('audio/') ||
+      contentType.includes('octet-stream') ||
+      contentType.includes('mpegurl') ||
+      contentType.includes('mp4') ||
+      contentType.includes('flac');
+    if (!likelyAudio) {
+      return { ok: false, reason: `not audio: ${probe.contentType}` };
+    }
+  }
+  return { ok: true };
 }
 
 function artistText(songData) {
