@@ -101,6 +101,15 @@ class AppStrings {
   String get yourFavorites => _t('yourFavorites');
   String get favoritesEmpty => _t('favoritesEmpty');
   String get favorites => _t('favorites');
+  String get downloads => _t('downloads');
+  String downloadedSongs(int count) =>
+      _t('downloadedSongs').replaceAll('{count}', '$count');
+  String get downloadsEmpty => _t('downloadsEmpty');
+  String get download => _t('download');
+  String get downloading => _t('downloading');
+  String get downloaded => _t('downloaded');
+  String get deleteDownload => _t('deleteDownload');
+  String get downloadFailed => _t('downloadFailed');
   String get appearance => _t('appearance');
   String get musicServices => _t('musicServices');
   String get noResults => _t('noResults');
@@ -201,6 +210,14 @@ const _en = {
   'favoritesEmpty':
       'Favorite songs from Home, Search, or the player will appear here.',
   'favorites': 'Favorites',
+  'downloads': 'Downloads',
+  'downloadedSongs': '{count} downloaded',
+  'downloadsEmpty': 'Downloaded songs will appear here for offline playback.',
+  'download': 'Download',
+  'downloading': 'Downloading...',
+  'downloaded': 'Downloaded',
+  'deleteDownload': 'Delete download',
+  'downloadFailed': 'Download failed',
   'hundredMillionPlays': '{count}B plays',
   'tenThousandPlays': '{count}W plays',
   'plainPlays': '{count} plays',
@@ -274,6 +291,14 @@ const _zhHans = {
   'yourFavorites': '你的收藏',
   'favoritesEmpty': '在首页、搜索或播放器里收藏的歌曲会显示在这里。',
   'favorites': '收藏',
+  'downloads': '下载',
+  'downloadedSongs': '已下载 {count} 首',
+  'downloadsEmpty': '下载的歌曲会显示在这里，可离线播放。',
+  'download': '下载',
+  'downloading': '下载中...',
+  'downloaded': '已下载',
+  'deleteDownload': '删除下载',
+  'downloadFailed': '下载失败',
   'hundredMillionPlays': '{count} 亿次播放',
   'tenThousandPlays': '{count} 万次播放',
   'plainPlays': '{count} 次播放',
@@ -347,6 +372,14 @@ const _zhHant = {
   'yourFavorites': '你的收藏',
   'favoritesEmpty': '在首頁、搜尋或播放器裡收藏的歌曲會顯示在這裡。',
   'favorites': '收藏',
+  'downloads': '下載',
+  'downloadedSongs': '已下載 {count} 首',
+  'downloadsEmpty': '下載的歌曲會顯示在這裡，可離線播放。',
+  'download': '下載',
+  'downloading': '下載中...',
+  'downloaded': '已下載',
+  'deleteDownload': '刪除下載',
+  'downloadFailed': '下載失敗',
   'hundredMillionPlays': '{count} 億次播放',
   'tenThousandPlays': '{count} 萬次播放',
   'plainPlays': '{count} 次播放',

@@ -5,14 +5,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_strings.dart';
 import 'models/muse_user.dart';
 import 'models/song.dart';
+import 'services/download_service.dart';
 import 'services/musehub_server_api.dart';
 import 'services/music_api.dart';
 
 class AppState extends ChangeNotifier {
-  AppState(this.api, this.serverApi);
+  AppState(this.api, this.serverApi, this.downloadService);
 
   final MusicApi api;
   final MuseHubServerApi serverApi;
+  final DownloadService downloadService;
 
   static const _apiBaseUrlKey = 'apiBaseUrl';
   static const _resolverBaseUrlKey = 'resolverBaseUrl';
@@ -23,6 +25,8 @@ class AppState extends ChangeNotifier {
   static const _favoriteTrackIdsKey = 'favoriteTrackIds';
   final Set<int> _favoriteIds = {};
   final Map<int, String> _favoriteTrackIdsBySongId = {};
+  final Map<int, DownloadedSong> _downloads = {};
+  final Set<int> _downloadingIds = {};
   String _apiBaseUrl = MusicApi.defaultBaseUrl;
   String _resolverBaseUrl = _defaultResolverBaseUrl;
   String _serverBaseUrl = _defaultServerBaseUrl;
@@ -40,6 +44,9 @@ class AppState extends ChangeNotifier {
   bool get authLoading => _authLoading;
   Locale? get locale => _locale;
   Set<int> get favoriteIds => Set.unmodifiable(_favoriteIds);
+  List<DownloadedSong> get downloads => List.unmodifiable(_downloads.values);
+  bool isDownloaded(Song song) => _downloads.containsKey(song.id);
+  bool isDownloading(Song song) => _downloadingIds.contains(song.id);
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -69,6 +76,7 @@ class AppState extends ChangeNotifier {
       ..addAll(_decodeFavoriteTrackIds(
           prefs.getStringList(_favoriteTrackIdsKey) ?? const []));
     await _restoreSession();
+    await refreshDownloads();
     notifyListeners();
   }
 
@@ -195,6 +203,35 @@ class AppState extends ChangeNotifier {
   }
 
   bool isFavorite(Song song) => _favoriteIds.contains(song.id);
+
+  Future<void> refreshDownloads() async {
+    final items = await downloadService.listDownloads();
+    _downloads
+      ..clear()
+      ..addEntries(items.map((item) => MapEntry(item.song.id, item)));
+    notifyListeners();
+  }
+
+  Future<void> downloadSong(Song song) async {
+    if (_downloads.containsKey(song.id) || _downloadingIds.contains(song.id)) {
+      return;
+    }
+    _downloadingIds.add(song.id);
+    notifyListeners();
+    try {
+      final item = await downloadService.downloadSong(song);
+      _downloads[item.song.id] = item;
+    } finally {
+      _downloadingIds.remove(song.id);
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteDownload(Song song) async {
+    await downloadService.deleteDownload(song.id);
+    _downloads.remove(song.id);
+    notifyListeners();
+  }
 
   Future<void> _restoreSession() async {
     final token = _sessionToken;

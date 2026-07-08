@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:musehub/core/app_state.dart';
 import 'package:musehub/core/models/artist.dart';
 import 'package:musehub/core/models/song.dart';
+import 'package:musehub/core/services/download_service.dart';
 import 'package:musehub/core/services/musehub_server_api.dart';
 import 'package:musehub/core/services/music_api.dart';
 import 'package:musehub/features/player/full_player_page.dart';
@@ -16,7 +17,11 @@ import 'package:musehub/player/player_controller.dart';
 void main() {
   testWidgets('renders the MuseHub app chrome', (tester) async {
     await tester.pumpWidget(
-      MuseHubApp(api: MusicApi(), serverApi: MuseHubServerApi()),
+      MuseHubApp(
+        api: MusicApi(),
+        serverApi: MuseHubServerApi(),
+        downloadService: DownloadService(),
+      ),
     );
     await tester.pump();
 
@@ -35,6 +40,7 @@ void main() {
 
     final api = MusicApi();
     final serverApi = MuseHubServerApi();
+    final downloadService = DownloadService();
     final player = _FakePlayerController();
     addTearDown(player.dispose);
 
@@ -43,8 +49,9 @@ void main() {
         providers: [
           Provider<MusicApi>.value(value: api),
           Provider<MuseHubServerApi>.value(value: serverApi),
+          Provider<DownloadService>.value(value: downloadService),
           ChangeNotifierProvider<AppState>.value(
-            value: AppState(api, serverApi),
+            value: AppState(api, serverApi, downloadService),
           ),
           ChangeNotifierProvider<PlayerController>.value(value: player),
         ],
@@ -67,7 +74,7 @@ void main() {
 }
 
 class _FakePlayerController extends PlayerController {
-  _FakePlayerController() : super(MusicApi());
+  _FakePlayerController() : super(MusicApi(), DownloadService());
 
   final _song = const Song(
     id: 19292984,

@@ -24,10 +24,8 @@ class SongTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final player = context.watch<PlayerController>();
-    final isFavorite = appState.isFavorite(song);
     final isPlaying = player.current?.id == song.id;
     final scheme = Theme.of(context).colorScheme;
-    final strings = AppStrings.of(context);
 
     return Material(
       color: Colors.transparent,
@@ -100,20 +98,7 @@ class SongTile extends StatelessWidget {
                   ],
                 ),
               ),
-              trailing ??
-                  IconButton(
-                    tooltip: isFavorite
-                        ? strings.removeFavorite
-                        : strings.moreOptions,
-                    icon: Icon(
-                      isFavorite ? Icons.favorite : Icons.more_horiz,
-                      color: isFavorite
-                          ? scheme.primaryContainer
-                          : scheme.onSurfaceVariant,
-                      size: 20,
-                    ),
-                    onPressed: () => appState.toggleFavorite(song),
-                  ),
+              trailing ?? _SongActions(song: song, appState: appState),
             ],
           ),
         ),
@@ -121,6 +106,92 @@ class SongTile extends StatelessWidget {
     );
   }
 }
+
+class _SongActions extends StatelessWidget {
+  const _SongActions({
+    required this.song,
+    required this.appState,
+  });
+
+  final Song song;
+  final AppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isFavorite = appState.isFavorite(song);
+    final isDownloaded = appState.isDownloaded(song);
+    final isDownloading = appState.isDownloading(song);
+
+    return PopupMenuButton<_SongAction>(
+      tooltip: strings.moreOptions,
+      icon: Icon(
+        isFavorite ? Icons.favorite : Icons.more_horiz,
+        color: isFavorite ? scheme.primaryContainer : scheme.onSurfaceVariant,
+        size: 20,
+      ),
+      onSelected: (action) {
+        switch (action) {
+          case _SongAction.favorite:
+            appState.toggleFavorite(song);
+          case _SongAction.download:
+            _runDownload(context);
+          case _SongAction.deleteDownload:
+            appState.deleteDownload(song);
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _SongAction.favorite,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              isFavorite ? Icons.favorite_rounded : Icons.favorite_border,
+            ),
+            title: Text(isFavorite ? strings.removeFavorite : strings.favorite),
+          ),
+        ),
+        PopupMenuItem(
+          value:
+              isDownloaded ? _SongAction.deleteDownload : _SongAction.download,
+          enabled: !isDownloading,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              isDownloaded
+                  ? Icons.delete_outline_rounded
+                  : Icons.download_rounded,
+            ),
+            title: Text(
+              isDownloading
+                  ? strings.downloading
+                  : isDownloaded
+                      ? strings.deleteDownload
+                      : strings.download,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _runDownload(BuildContext context) async {
+    final strings = AppStrings.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await appState.downloadSong(song);
+    } on Object {
+      messenger.showSnackBar(
+        SnackBar(content: Text(strings.downloadFailed)),
+      );
+    }
+  }
+}
+
+enum _SongAction { favorite, download, deleteDownload }
 
 /// Animated three-bar equalizer icon shown on currently playing tracks.
 class _EqualizerIcon extends StatefulWidget {

@@ -7,12 +7,13 @@ import 'package:palette_generator/palette_generator.dart';
 
 import '../core/models/lyric_line.dart';
 import '../core/models/song.dart';
+import '../core/services/download_service.dart';
 import '../core/services/music_api.dart';
 
 enum PlaybackRepeatMode { off, one, all }
 
 class PlayerController extends ChangeNotifier {
-  PlayerController(this._api) {
+  PlayerController(this._api, this._downloads) {
     _positionSub = _audio.positionStream.listen((value) {
       _position = value;
       notifyListeners();
@@ -31,6 +32,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   final MusicApi _api;
+  final DownloadService _downloads;
   final AudioPlayer _audio = AudioPlayer();
   late final StreamSubscription<Duration> _positionSub;
   late final StreamSubscription<Duration?> _durationSub;
@@ -113,14 +115,20 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
       }
       unawaited(_loadLyrics(song.id, requestId));
-      final url = await _api.songUrl(hydratedSong);
+      final localPath = await _downloads.localPathForSong(hydratedSong.id);
       if (!_isCurrentRequest(requestId, song.id)) return;
-      if (url == null) {
-        throw const MusicApiException(
-          'This track is unavailable from the current music source.',
-        );
+      if (localPath != null) {
+        await _audio.setFilePath(localPath).timeout(const Duration(seconds: 12));
+      } else {
+        final url = await _api.songUrl(hydratedSong);
+        if (!_isCurrentRequest(requestId, song.id)) return;
+        if (url == null) {
+          throw const MusicApiException(
+            'This track is unavailable from the current music source.',
+          );
+        }
+        await _audio.setUrl(url).timeout(const Duration(seconds: 12));
       }
-      await _audio.setUrl(url).timeout(const Duration(seconds: 12));
       if (!_isCurrentRequest(requestId, song.id)) return;
       await _audio.play();
     } catch (error) {

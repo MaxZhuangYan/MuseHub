@@ -186,6 +186,7 @@ class _FullPlayerPageState extends State<FullPlayerPage> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
+                                _DownloadButton(appState: appState, song: song),
                                 _FavButton(appState: appState, song: song),
                               ],
                             ),
@@ -482,6 +483,54 @@ class _FavButton extends StatelessWidget {
       ),
       onPressed: () => appState.toggleFavorite(song),
     );
+  }
+}
+
+class _DownloadButton extends StatelessWidget {
+  const _DownloadButton({required this.appState, required this.song});
+  final AppState appState;
+  final dynamic song;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final isDownloaded = appState.isDownloaded(song);
+    final isDownloading = appState.isDownloading(song);
+    return IconButton(
+      tooltip: isDownloading
+          ? strings.downloading
+          : isDownloaded
+              ? strings.downloaded
+              : strings.download,
+      icon: isDownloading
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              isDownloaded
+                  ? Icons.download_done_rounded
+                  : Icons.download_rounded,
+              color: isDownloaded ? MuseTheme.accent : MuseTheme.textSecondary,
+              size: 26,
+            ),
+      onPressed: isDownloading || isDownloaded
+          ? null
+          : () => _runDownload(context),
+    );
+  }
+
+  Future<void> _runDownload(BuildContext context) async {
+    final strings = AppStrings.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await appState.downloadSong(song);
+    } on Object {
+      messenger.showSnackBar(
+        SnackBar(content: Text(strings.downloadFailed)),
+      );
+    }
   }
 }
 

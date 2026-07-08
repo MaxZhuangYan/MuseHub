@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_state.dart';
+import 'core/services/download_service.dart';
 import 'core/services/musehub_server_api.dart';
 import 'core/services/music_api.dart';
 import 'core/theme.dart';
@@ -22,18 +23,27 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final api = MusicApi();
   final serverApi = MuseHubServerApi();
-  runApp(MuseHubApp(api: api, serverApi: serverApi));
+  final downloadService = DownloadService(api: api);
+  runApp(
+    MuseHubApp(
+      api: api,
+      serverApi: serverApi,
+      downloadService: downloadService,
+    ),
+  );
 }
 
 class MuseHubApp extends StatelessWidget {
   const MuseHubApp({
     required this.api,
     required this.serverApi,
+    required this.downloadService,
     super.key,
   });
 
   final MusicApi api;
   final MuseHubServerApi serverApi;
+  final DownloadService downloadService;
 
   @override
   Widget build(BuildContext context) {
@@ -41,8 +51,13 @@ class MuseHubApp extends StatelessWidget {
       providers: [
         Provider<MusicApi>.value(value: api),
         Provider<MuseHubServerApi>.value(value: serverApi),
-        ChangeNotifierProvider(create: (_) => AppState(api, serverApi)..load()),
-        ChangeNotifierProvider(create: (_) => PlayerController(api)),
+        Provider<DownloadService>.value(value: downloadService),
+        ChangeNotifierProvider(
+          create: (_) => AppState(api, serverApi, downloadService)..load(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PlayerController(api, downloadService),
+        ),
       ],
       child: Consumer<AppState>(
         builder: (context, appState, _) => MaterialApp(
