@@ -237,7 +237,7 @@ class MusicApi {
       },
     );
     if (data == null) return null;
-    return _validatedAudioUrl(_readSongUrl(data));
+    return _validatedAudioUrl(_readSongUrl(data), durationMs: song.durationMs);
   }
 
   Future<String?> _resolveWithCompatibleApi(
@@ -257,7 +257,10 @@ class MusicApi {
       );
       if (data != null) {
         final url = _readSongUrl(data);
-        final validatedUrl = await _validatedAudioUrl(url);
+        final validatedUrl = await _validatedAudioUrl(
+          url,
+          durationMs: song.durationMs,
+        );
         if (validatedUrl != null) return validatedUrl;
       }
     }
@@ -268,7 +271,7 @@ class MusicApi {
       useLegacyBase: useLegacyBase,
     );
     if (data == null) return null;
-    return _validatedAudioUrl(_readSongUrl(data));
+    return _validatedAudioUrl(_readSongUrl(data), durationMs: song.durationMs);
   }
 
   Future<String?> _resolveWithAlgerFallback(Song song) async {
@@ -291,6 +294,9 @@ class MusicApi {
       ],
       'songData': {
         'name': song.name,
+        'duration': song.durationMs,
+        'durationMs': song.durationMs,
+        'dt': song.durationMs,
         'artists': song.artists
             .map((artist) => {'id': artist.id, 'name': artist.name})
             .toList(),
@@ -327,7 +333,7 @@ class MusicApi {
           name: 'MuseHub.MusicApi',
         );
       }
-      return _validatedAudioUrl(resolvedUrl);
+      return _validatedAudioUrl(resolvedUrl, durationMs: song.durationMs);
     } on Object catch (error) {
       developer.log(
         'Alger fallback failed for ${song.id}: $error',
@@ -381,12 +387,12 @@ class MusicApi {
     return byId.values.toList();
   }
 
-  Future<String?> _validatedAudioUrl(String? url) async {
+  Future<String?> _validatedAudioUrl(String? url, {int? durationMs}) async {
     if (url == null || url.isEmpty) return null;
     if (kIsWeb) return url;
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
-    final probeResult = await _probeAudioUrl(uri);
+    final probeResult = await _probeAudioUrl(uri, durationMs: durationMs);
     if (probeResult != false) return url;
     developer.log(
       'Rejected non-playable audio URL: $url',
@@ -395,7 +401,7 @@ class MusicApi {
     return null;
   }
 
-  Future<bool?> _probeAudioUrl(Uri uri) async {
+  Future<bool?> _probeAudioUrl(Uri uri, {int? durationMs}) async {
     try {
       final response = await _client
           .head(uri, headers: _audioProbeHeaders)
@@ -404,6 +410,7 @@ class MusicApi {
         response.statusCode,
         response.headers,
         isRangeProbe: false,
+        durationMs: durationMs,
       );
       if (result != null) return result;
     } on Object {
@@ -420,6 +427,7 @@ class MusicApi {
         response.statusCode,
         response.headers,
         isRangeProbe: true,
+        durationMs: durationMs,
       );
     } on Object {
       return null;
@@ -430,6 +438,7 @@ class MusicApi {
     int statusCode,
     Map<String, String> headers, {
     required bool isRangeProbe,
+    int? durationMs,
   }) {
     if (statusCode < 200 || statusCode >= 300) return false;
     final contentType = (headers['content-type'] ?? '').toLowerCase();
@@ -439,22 +448,37 @@ class MusicApi {
       return false;
     }
     final contentLength = int.tryParse(headers['content-length'] ?? '');
+    final minimumBytes = _minimumExpectedAudioBytes(durationMs);
+    if (!isRangeProbe && contentLength != null && contentLength > 0) {
+      if (contentLength < minimumBytes) return false;
+    }
     if (!isRangeProbe &&
-        contentLength != null &&
-        contentLength > 0 &&
-        contentLength < _minLikelyAudioBytes) {
+        contentLength == null &&
+        minimumBytes > _minLikelyAudioBytes) {
+      return null;
+    }
+    if (!isRangeProbe && contentLength == 0) {
       return false;
     }
     if (contentType.isEmpty) {
       return contentLength == null || isRangeProbe
           ? null
-          : contentLength >= _minLikelyAudioBytes;
+          : contentLength >= minimumBytes;
     }
     return contentType.startsWith('audio/') ||
         contentType.contains('octet-stream') ||
         contentType.contains('mpegurl') ||
         contentType.contains('mp4') ||
         contentType.contains('flac');
+  }
+
+  int _minimumExpectedAudioBytes(int? durationMs) {
+    if (durationMs == null || durationMs <= 0) return _minLikelyAudioBytes;
+    final seconds = durationMs / 1000;
+    final expectedLowBitrateBytes = (seconds * 8000).round();
+    return expectedLowBitrateBytes < _minLikelyAudioBytes
+        ? _minLikelyAudioBytes
+        : expectedLowBitrateBytes;
   }
 
   static const Map<String, String> _audioProbeHeaders = {

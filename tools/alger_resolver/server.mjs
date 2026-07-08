@@ -6,8 +6,9 @@ const DEFAULT_PORT = 30489;
 const DEFAULT_HOST = '0.0.0.0';
 const DEFAULT_NETEASE_API = 'https://music.163.com/api';
 const ALL_PLATFORMS = ['pyncmd', 'kugou', 'kuwo', 'migu', 'qq', 'bilibili'];
-const SOURCE_PRIORITY = ['pyncmd', 'kugou', 'kuwo', 'migu', 'qq', 'bilibili'];
+const SOURCE_PRIORITY = ['pyncmd', 'migu', 'qq', 'kugou', 'kuwo', 'bilibili'];
 const MIN_AUDIO_BYTES = Number.parseInt(process.env.MIN_AUDIO_BYTES || `${512 * 1024}`, 10);
+const MIN_AUDIO_BYTES_PER_SECOND = Number.parseInt(process.env.MIN_AUDIO_BYTES_PER_SECOND || '8000', 10);
 const MAX_CANDIDATES = Number.parseInt(process.env.MAX_CANDIDATES || '6', 10);
 const neteaseApiBaseUrl = (process.env.NETEASE_API || DEFAULT_NETEASE_API).replace(/\/+$/, '');
 
@@ -29,9 +30,16 @@ function ensureSongData(data = {}) {
   return {
     ...data,
     name: data.name || '',
+    duration: readDurationMs(data),
     artists: artists.map((artist) => ({ name: artist?.name || '' })),
     album: { name: album.name || '' },
   };
+}
+
+function readDurationMs(data = {}) {
+  const value = data.durationMs ?? data.duration ?? data.dt;
+  const parsed = Number.parseInt(`${value || 0}`, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function readJson(request) {
@@ -210,25 +218,29 @@ function getJson(url, redirectCount = 0) {
   });
 }
 
-async function isUsableAudio(data) {
+async function isUsableAudio(data, songData = {}) {
   if (!data?.url || typeof data.url !== 'string') {
     return { ok: false, reason: 'missing url' };
   }
 
+  const minBytes = minimumExpectedAudioBytes(songData.duration);
   const declaredSize = Number.parseInt(`${data.size || 0}`, 10);
-  if (declaredSize > 0 && declaredSize < MIN_AUDIO_BYTES) {
+  if (declaredSize > 0 && declaredSize < minBytes) {
     return {
       ok: false,
       reason: `declared audio too small: ${declaredSize} bytes`,
     };
   }
-  if (declaredSize >= MIN_AUDIO_BYTES) {
+  if (declaredSize >= minBytes) {
     return { ok: true };
   }
 
   try {
     const head = await requestHead(data.url);
-    const validation = validateAudioProbe(head, { isRangeProbe: false });
+    const validation = validateAudioProbe(head, {
+      isRangeProbe: false,
+      minBytes,
+    });
     if (validation.ok) return validation;
   } catch (_) {
     // Some music CDNs reject HEAD; fall through to a byte-range probe.
@@ -236,7 +248,10 @@ async function isUsableAudio(data) {
 
   try {
     const probe = await requestRangeProbe(data.url);
-    const validation = validateAudioProbe(probe, { isRangeProbe: true });
+    const validation = validateAudioProbe(probe, {
+      isRangeProbe: true,
+      minBytes,
+    });
     if (!validation.ok) return validation;
     return { ok: true };
   } catch (error) {
@@ -247,7 +262,7 @@ async function isUsableAudio(data) {
   }
 }
 
-function validateAudioProbe(probe, { isRangeProbe }) {
+function validateAudioProbe(probe, { isRangeProbe, minBytes }) {
   if (probe.statusCode < 200 || probe.statusCode >= 300) {
     return { ok: false, reason: `bad status: ${probe.statusCode}` };
   }
@@ -262,7 +277,7 @@ function validateAudioProbe(probe, { isRangeProbe }) {
   if (
     !isRangeProbe &&
     probe.contentLength > 0 &&
-    probe.contentLength < MIN_AUDIO_BYTES
+    probe.contentLength < minBytes
   ) {
     return {
       ok: false,
@@ -281,6 +296,13 @@ function validateAudioProbe(probe, { isRangeProbe }) {
     }
   }
   return { ok: true };
+}
+
+function minimumExpectedAudioBytes(durationMs) {
+  const parsed = Number.parseInt(`${durationMs || 0}`, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return MIN_AUDIO_BYTES;
+  const seconds = parsed / 1000;
+  return Math.max(MIN_AUDIO_BYTES, Math.round(seconds * MIN_AUDIO_BYTES_PER_SECOND));
 }
 
 function artistText(songData) {
@@ -326,7 +348,7 @@ async function resolveBySources(id, songData, enabledSources) {
   for (const source of enabledSources) {
     try {
       const candidate = await match(id, [source], songData);
-      const validation = await isUsableAudio(candidate);
+      const validation = await isUsableAudio(candidate, songData);
       if (validation.ok) {
         return { data: candidate, failures };
       }

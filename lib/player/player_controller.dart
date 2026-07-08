@@ -29,6 +29,10 @@ class PlayerController extends ChangeNotifier {
       }
       notifyListeners();
     });
+    _stallWatchdog = Timer.periodic(
+      const Duration(seconds: 4),
+      (_) => _checkPlaybackStall(),
+    );
   }
 
   final MusicApi _api;
@@ -37,6 +41,7 @@ class PlayerController extends ChangeNotifier {
   late final StreamSubscription<Duration> _positionSub;
   late final StreamSubscription<Duration?> _durationSub;
   late final StreamSubscription<PlayerState> _stateSub;
+  late final Timer _stallWatchdog;
 
   List<Song> _queue = [];
   Song? _current;
@@ -48,6 +53,9 @@ class PlayerController extends ChangeNotifier {
   String? _error;
   PlaybackRepeatMode _repeatMode = PlaybackRepeatMode.all;
   int _playRequestId = 0;
+  Duration? _lastWatchdogPosition;
+  int _stalledTicks = 0;
+  bool _recoveringStall = false;
 
   // Ambient color extracted from current song cover art
   Color? _ambientColor;
@@ -114,29 +122,7 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
       }
       unawaited(_loadLyrics(song.id, requestId));
-      var sourceLoaded = false;
-      final localPath = await _localPathForSong(hydratedSong.id);
-      if (!_isCurrentRequest(requestId, song.id)) return;
-      if (localPath != null) {
-        try {
-          await _audio
-              .setFilePath(localPath)
-              .timeout(const Duration(seconds: 12));
-          sourceLoaded = true;
-        } on Object {
-          sourceLoaded = false;
-        }
-      }
-      if (!sourceLoaded) {
-        final url = await _api.songUrl(hydratedSong);
-        if (!_isCurrentRequest(requestId, song.id)) return;
-        if (url == null) {
-          throw const MusicApiException(
-            'This track is unavailable from the current music source.',
-          );
-        }
-        await _audio.setUrl(url).timeout(const Duration(seconds: 12));
-      }
+      await _loadAudioSource(hydratedSong, requestId);
       if (!_isCurrentRequest(requestId, song.id)) return;
       await _audio.play();
     } catch (error) {
@@ -152,6 +138,32 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  Future<void> _loadAudioSource(Song song, int requestId) async {
+    var sourceLoaded = false;
+    final localPath = await _localPathForSong(song.id);
+    if (!_isCurrentRequest(requestId, song.id)) return;
+    if (localPath != null) {
+      try {
+        await _audio
+            .setFilePath(localPath)
+            .timeout(const Duration(seconds: 12));
+        sourceLoaded = true;
+      } on Object {
+        sourceLoaded = false;
+      }
+    }
+    if (sourceLoaded) return;
+
+    final url = await _api.songUrl(song);
+    if (!_isCurrentRequest(requestId, song.id)) return;
+    if (url == null) {
+      throw const MusicApiException(
+        'This track is unavailable from the current music source.',
+      );
+    }
+    await _audio.setUrl(url).timeout(const Duration(seconds: 12));
   }
 
   Future<String?> _localPathForSong(int songId) async {
@@ -203,6 +215,81 @@ class PlayerController extends ChangeNotifier {
 
   bool _isCurrentRequest(int requestId, int songId) =>
       requestId == _playRequestId && _current?.id == songId;
+
+  void _checkPlaybackStall() {
+    if (_current == null ||
+        !_audio.playing ||
+        _isLoading ||
+        _error != null ||
+        _recoveringStall) {
+      _resetStallWatchdog();
+      return;
+    }
+    if (_audio.processingState == ProcessingState.completed ||
+        _audio.processingState == ProcessingState.idle) {
+      _resetStallWatchdog();
+      return;
+    }
+    if (_duration > Duration.zero &&
+        _position >= _duration - const Duration(seconds: 3)) {
+      _resetStallWatchdog();
+      return;
+    }
+
+    final last = _lastWatchdogPosition;
+    _lastWatchdogPosition = _position;
+    if (last == null) return;
+
+    final delta = (_position - last).abs();
+    if (delta > const Duration(milliseconds: 600)) {
+      _stalledTicks = 0;
+      return;
+    }
+
+    _stalledTicks += 1;
+    if (_stalledTicks >= 3) {
+      _stalledTicks = 0;
+      unawaited(_recoverStalledPlayback());
+    }
+  }
+
+  void _resetStallWatchdog() {
+    _lastWatchdogPosition = null;
+    _stalledTicks = 0;
+  }
+
+  Future<void> _recoverStalledPlayback() async {
+    final song = _current;
+    if (song == null || _recoveringStall) return;
+    final requestId = _playRequestId;
+    final resumeAt = _position;
+    _recoveringStall = true;
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await _audio.stop();
+      if (!_isCurrentRequest(requestId, song.id)) return;
+      await _loadAudioSource(song, requestId);
+      if (!_isCurrentRequest(requestId, song.id)) return;
+      if (resumeAt > Duration.zero) {
+        await _audio.seek(resumeAt);
+      }
+      if (!_isCurrentRequest(requestId, song.id)) return;
+      await _audio.play();
+    } catch (error) {
+      if (!_isCurrentRequest(requestId, song.id)) return;
+      _isPlaying = false;
+      _error = error.toString();
+    } finally {
+      _recoveringStall = false;
+      _resetStallWatchdog();
+      if (_isCurrentRequest(requestId, song.id)) {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
+  }
 
   Future<void> _extractAmbientColor(String coverUrl) async {
     if (coverUrl.isEmpty) return;
@@ -269,6 +356,7 @@ class PlayerController extends ChangeNotifier {
     _positionSub.cancel();
     _durationSub.cancel();
     _stateSub.cancel();
+    _stallWatchdog.cancel();
     _audio.dispose();
     super.dispose();
   }

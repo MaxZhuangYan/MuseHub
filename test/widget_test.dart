@@ -42,7 +42,6 @@ void main() {
     final serverApi = MuseHubServerApi();
     final downloadService = DownloadService();
     final player = _FakePlayerController();
-    addTearDown(player.dispose);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -70,6 +69,7 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
+    player.dispose();
   });
 }
 
