@@ -195,8 +195,7 @@ const _en = {
   'favoriteSongs': 'Favorite songs',
   'savedLocally': '{count} favorites',
   'mobileRebuild': 'Mobile rebuild',
-  'mobileRebuildBody':
-      'A Flutter music experience inspired by AlgerMusicPlayer workflows',
+  'mobileRebuildBody': 'A cross-platform MuseHub music client built with Flutter',
   'yourFavorites': 'Your favorites',
   'favoritesEmpty':
       'Favorite songs from Home, Search, or the player will appear here.',
@@ -270,7 +269,7 @@ const _zhHans = {
   'favoriteSongs': '收藏歌曲',
   'savedLocally': '已收藏 {count} 首',
   'mobileRebuild': '移动版重构',
-  'mobileRebuildBody': '受 AlgerMusicPlayer 工作流启发的 Flutter 音乐体验',
+  'mobileRebuildBody': '基于 Flutter 构建的 MuseHub 跨平台音乐客户端',
   'yourFavorites': '你的收藏',
   'favoritesEmpty': '在首页、搜索或播放器里收藏的歌曲会显示在这里。',
   'favorites': '收藏',
@@ -343,7 +342,7 @@ const _zhHant = {
   'favoriteSongs': '收藏歌曲',
   'savedLocally': '已收藏 {count} 首',
   'mobileRebuild': '行動版重構',
-  'mobileRebuildBody': '受 AlgerMusicPlayer 工作流程啟發的 Flutter 音樂體驗',
+  'mobileRebuildBody': '基於 Flutter 構建的 MuseHub 跨平台音樂客戶端',
   'yourFavorites': '你的收藏',
   'favoritesEmpty': '在首頁、搜尋或播放器裡收藏的歌曲會顯示在這裡。',
   'favorites': '收藏',
