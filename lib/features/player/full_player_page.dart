@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
@@ -351,10 +353,8 @@ class _FullPlayerPageState extends State<FullPlayerPage> {
   }
 }
 
-/// Lyrics sheet content, split out so it can `watch` [PlayerController] and
-/// keep rebuilding as playback advances — the old inline builder only ran
-/// once at open time, so the highlighted line (and any attempt to scroll to
-/// it) was frozen at whatever was active the instant the sheet appeared.
+/// Lyrics sheet content that stays subscribed to playback progress and keeps
+/// the active line centered unless the user is manually browsing lyrics.
 class _LyricsSheet extends StatefulWidget {
   const _LyricsSheet({required this.accent});
   final Color accent;
@@ -367,29 +367,64 @@ class _LyricsSheetState extends State<_LyricsSheet> {
   final _scrollController = ScrollController();
   final Map<int, GlobalKey> _lineKeys = {};
   LyricLine? _lastScrolledLine;
+  Timer? _resumeTrackingTimer;
+  bool _userBrowsing = false;
+  bool _autoScrolling = false;
 
   @override
   void dispose() {
+    _resumeTrackingTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _scrollToActiveLine(LyricLine? active, List<LyricLine> lyrics) {
-    if (active == null || identical(active, _lastScrolledLine)) return;
-    _lastScrolledLine = active;
+  void _scheduleScrollToActiveLine(
+    LyricLine? active,
+    List<LyricLine> lyrics, {
+    bool force = false,
+  }) {
+    if (active == null || (_userBrowsing && !force)) return;
+    if (!force && identical(active, _lastScrolledLine)) return;
     final index = lyrics.indexOf(active);
     if (index == -1) return;
-    final lineContext = _lineKeys[index]?.currentContext;
-    if (lineContext == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final lineContext = _lineKeys[index]?.currentContext;
+      if (lineContext == null) return;
+      _lastScrolledLine = active;
+      _autoScrolling = true;
       Scrollable.ensureVisible(
         lineContext,
-        alignment: 0.4,
-        duration: const Duration(milliseconds: 450),
+        alignment: 0.46,
+        duration: const Duration(milliseconds: 360),
         curve: Curves.easeOutCubic,
-      );
+      ).whenComplete(() {
+        if (mounted) _autoScrolling = false;
+      });
     });
+  }
+
+  void _pauseTracking(LyricLine? active, List<LyricLine> lyrics) {
+    if (!_userBrowsing) {
+      setState(() => _userBrowsing = true);
+    }
+    _resumeTrackingTimer?.cancel();
+    _resumeTrackingTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      setState(() => _userBrowsing = false);
+      _scheduleScrollToActiveLine(active, lyrics, force: true);
+    });
+  }
+
+  bool _isManualScroll(ScrollNotification notification) {
+    if (_autoScrolling) return false;
+    if (notification is UserScrollNotification) {
+      return notification.direction != ScrollDirection.idle;
+    }
+    return (notification is ScrollStartNotification &&
+            notification.dragDetails != null) ||
+        (notification is ScrollUpdateNotification &&
+            notification.dragDetails != null);
   }
 
   @override
@@ -399,47 +434,100 @@ class _LyricsSheetState extends State<_LyricsSheet> {
     final lyrics = player.lyrics;
     final active = player.activeLyric;
 
-    _scrollToActiveLine(active, lyrics);
+    _scheduleScrollToActiveLine(active, lyrics);
 
-    return ListView(
-      controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
-      children: [
-        Text(
-          strings.lyrics,
-          style: GoogleFonts.sora(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: MuseTheme.textPrimary,
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (_isManualScroll(notification)) {
+          _pauseTracking(active, lyrics);
+        }
+        return false;
+      },
+      child: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+        children: [
+          Text(
+            strings.lyrics,
+            style: GoogleFonts.sora(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: MuseTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (lyrics.isEmpty)
+            Text(
+              strings.lyricsUnavailable,
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 14,
+                color: MuseTheme.textSecondary,
+              ),
+            )
+          else
+            for (var i = 0; i < lyrics.length; i++)
+              _LyricLineTile(
+                key: _lineKeys.putIfAbsent(i, () => GlobalKey()),
+                line: lyrics[i],
+                isActive: lyrics[i] == active,
+                accent: widget.accent,
+                onTap: () {
+                  unawaited(player.seek(lyrics[i].time));
+                  _resumeTrackingTimer?.cancel();
+                  setState(() => _userBrowsing = false);
+                  _scheduleScrollToActiveLine(lyrics[i], lyrics, force: true);
+                },
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LyricLineTile extends StatelessWidget {
+  const _LyricLineTile({
+    super.key,
+    required this.line,
+    required this.isActive,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final LyricLine line;
+  final bool isActive;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.symmetric(vertical: isActive ? 9 : 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            style: GoogleFonts.hankenGrotesk(
+              fontSize: isActive ? 18 : 16,
+              fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+              height: 1.28,
+              color: isActive
+                  ? accent
+                  : MuseTheme.textPrimary.withValues(alpha: 0.42),
+            ),
+            child: Text(
+              line.text,
+              textAlign: TextAlign.center,
+              softWrap: true,
+            ),
           ),
         ),
-        const SizedBox(height: 20),
-        if (lyrics.isEmpty)
-          Text(
-            strings.lyricsUnavailable,
-            style: GoogleFonts.hankenGrotesk(
-                fontSize: 14, color: MuseTheme.textSecondary),
-          )
-        else
-          for (var i = 0; i < lyrics.length; i++)
-            Padding(
-              key: _lineKeys.putIfAbsent(i, () => GlobalKey()),
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(
-                lyrics[i].text,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.hankenGrotesk(
-                  fontSize: 16,
-                  fontWeight: lyrics[i] == active
-                      ? FontWeight.w800
-                      : FontWeight.w500,
-                  color: lyrics[i] == active
-                      ? widget.accent
-                      : MuseTheme.textPrimary.withValues(alpha: 0.42),
-                ),
-              ),
-            ),
-      ],
+      ),
     );
   }
 }
@@ -567,9 +655,8 @@ class _DownloadButton extends StatelessWidget {
               color: isDownloaded ? MuseTheme.accent : MuseTheme.textSecondary,
               size: 26,
             ),
-      onPressed: isDownloading || isDownloaded
-          ? null
-          : () => _runDownload(context),
+      onPressed:
+          isDownloading || isDownloaded ? null : () => _runDownload(context),
     );
   }
 
