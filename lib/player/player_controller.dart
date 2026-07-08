@@ -212,10 +212,13 @@ class PlayerController extends ChangeNotifier {
 
     if (!_isCurrentRequest(requestId, song.id)) return;
     if (!triedAny) {
+      // Every method — including the compatible API's VIP/region unlock —
+      // came back empty. Enabling the Alger resolver in Settings adds one
+      // more independent source worth trying for genuinely hard cases.
       if (song.requiresPaidAccess && _api.resolverBaseUrl.isEmpty) {
         throw const MusicApiException(
-          'This track requires Netease VIP membership. Enable the Alger '
-          'fallback resolver in Settings to play it from an alternate source.',
+          'This VIP-only track could not be unlocked. Enabling the Alger '
+          'fallback resolver in Settings may find it on another source.',
         );
       }
       throw const MusicApiException(

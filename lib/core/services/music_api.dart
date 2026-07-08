@@ -255,11 +255,15 @@ class MusicApi {
     String level = 'higher',
     bool bypassResolverCooldown = false,
   }) async* {
-    // VIP-only and pay-per-track songs always 404 from the unauthenticated
-    // direct/compatible APIs (confirmed: they respond with a definitive
-    // "no permission" error, not a transient failure) — only a multi-source
-    // Alger unblock can find a playable copy elsewhere. Skip straight to it
-    // instead of burning two guaranteed-failed network round trips first.
+    // VIP-only and pay-per-track songs always 404 from the bare
+    // unauthenticated *direct* endpoint (confirmed: definitive "no
+    // permission", not a transient failure — it doesn't do the signed
+    // weapi/eapi request the realIP trick relies on). The *compatible*
+    // (NeteaseCloudMusicApi) endpoint, called with a spoofed China
+    // realIP, unlocks these tracks without needing any resolver at all —
+    // confirmed live against an actual VIP-only track — so it stays in
+    // the order for paid tracks; we just skip the one hop that's
+    // guaranteed to fail.
     final fullOrder = _usesDirectNetease
         ? const [
             ResolveMethod.direct,
@@ -267,8 +271,9 @@ class MusicApi {
             ResolveMethod.alger,
           ]
         : const [ResolveMethod.compatible, ResolveMethod.alger];
-    final defaultOrder =
-        song.requiresPaidAccess ? const [ResolveMethod.alger] : fullOrder;
+    final defaultOrder = song.requiresPaidAccess
+        ? fullOrder.where((m) => m != ResolveMethod.direct).toList()
+        : fullOrder;
 
     final remembered = _rememberedMethodBySongId[song.id];
     final order = remembered != null &&
@@ -384,6 +389,19 @@ class MusicApi {
     return _validatedAudioUrl(_readSongUrl(data), durationMs: song.durationMs);
   }
 
+  // NeteaseCloudMusicApi-compatible servers embed this in the signed
+  // weapi/eapi request they make to Netease's real backend, which trusts
+  // it for the region/VIP geo-check regardless of where the compatible
+  // API server (or the end user) is actually located. Confirmed live: a
+  // VIP-only track that 404s with no permission from every other path
+  // resolves to a real, playable URL once this is present — no China-
+  // hosted relay needed, because the spoofing happens server-side inside
+  // the already-signed request, not by changing our own network egress.
+  // 223.5.5.5 is AliDNS's well-known public resolver IP — any real
+  // mainland China address works equally well, this one's just stable
+  // and unambiguous.
+  static const _chinaRealIp = '223.5.5.5';
+
   Future<String?> _resolveWithCompatibleApi(
     Song song, {
     required String level,
@@ -396,6 +414,7 @@ class MusicApi {
           'id': '${song.id}',
           'level': candidateLevel,
           'encodeType': 'aac',
+          'realIP': _chinaRealIp,
         },
         useLegacyBase: useLegacyBase,
         maxAttempts: 1,
@@ -412,7 +431,11 @@ class MusicApi {
 
     final data = await _getOrNull(
       '/song/url',
-      query: {'id': '${song.id}', 'br': '128000'},
+      query: {
+        'id': '${song.id}',
+        'br': '128000',
+        'realIP': _chinaRealIp,
+      },
       useLegacyBase: useLegacyBase,
       maxAttempts: 1,
     );
