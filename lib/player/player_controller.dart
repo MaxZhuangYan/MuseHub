@@ -47,7 +47,6 @@ class PlayerController extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   PlaybackRepeatMode _repeatMode = PlaybackRepeatMode.all;
-  final Set<int> _unplayableIds = {};
   int _playRequestId = 0;
 
   // Ambient color extracted from current song cover art
@@ -147,14 +146,6 @@ class PlayerController extends ChangeNotifier {
       _position = Duration.zero;
       _isPlaying = false;
       _error = error.toString();
-      _unplayableIds.add(song.id);
-      if (_queue.length > 1) {
-        Future<void>.delayed(const Duration(milliseconds: 900), () {
-          if (_isCurrentRequest(requestId, song.id) && _error != null) {
-            unawaited(next());
-          }
-        });
-      }
     } finally {
       if (_isCurrentRequest(requestId, song.id)) {
         _isLoading = false;
@@ -176,7 +167,6 @@ class PlayerController extends ChangeNotifier {
     if (_isLoading && !_audio.playing) return;
     if (_error != null) {
       final song = _current!;
-      _unplayableIds.remove(song.id);
       await playSong(song, queue: _queue);
       return;
     }
@@ -235,15 +225,12 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> next({bool automatic = false}) async {
-    final song = _nextSong(
-      skipUnplayable: true,
-      respectRepeatOne: automatic,
-    );
+    final song = _nextSong(respectRepeatOne: automatic);
     if (song != null) await playSong(song);
   }
 
   Future<void> previous() async {
-    final song = _previousSong(skipUnplayable: true);
+    final song = _previousSong();
     if (song != null) await playSong(song);
   }
 
@@ -256,48 +243,25 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Song? _nextSong({
-    bool skipUnplayable = false,
-    bool respectRepeatOne = false,
-  }) {
+  Song? _nextSong({bool respectRepeatOne = false}) {
     if (_current == null || _queue.isEmpty) return _current;
-    if (respectRepeatOne &&
-        _repeatMode == PlaybackRepeatMode.one &&
-        (!skipUnplayable || !_unplayableIds.contains(_current!.id))) {
+    if (respectRepeatOne && _repeatMode == PlaybackRepeatMode.one) {
       return _current;
     }
     final index = _queue.indexWhere((song) => song.id == _current!.id);
     if (index == -1) return _queue.first;
-    for (var i = index + 1; i < _queue.length; i++) {
-      if (!skipUnplayable || !_unplayableIds.contains(_queue[i].id)) {
-        return _queue[i];
-      }
-    }
+    if (index + 1 < _queue.length) return _queue[index + 1];
     if (_repeatMode != PlaybackRepeatMode.all) return null;
-    for (var i = 0; i <= index; i++) {
-      if (!skipUnplayable || !_unplayableIds.contains(_queue[i].id)) {
-        return _queue[i];
-      }
-    }
-    return null;
+    return _queue.first;
   }
 
-  Song? _previousSong({bool skipUnplayable = false}) {
+  Song? _previousSong() {
     if (_current == null || _queue.isEmpty) return _current;
     final index = _queue.indexWhere((song) => song.id == _current!.id);
     if (index == -1) return _queue.last;
-    for (var i = index - 1; i >= 0; i--) {
-      if (!skipUnplayable || !_unplayableIds.contains(_queue[i].id)) {
-        return _queue[i];
-      }
-    }
+    if (index > 0) return _queue[index - 1];
     if (_repeatMode != PlaybackRepeatMode.all) return null;
-    for (var i = _queue.length - 1; i >= index; i--) {
-      if (!skipUnplayable || !_unplayableIds.contains(_queue[i].id)) {
-        return _queue[i];
-      }
-    }
-    return null;
+    return _queue.last;
   }
 
   @override
