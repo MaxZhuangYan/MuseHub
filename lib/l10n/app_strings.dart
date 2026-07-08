@@ -193,7 +193,10 @@ const _en = {
   'searchEmptyBody': 'Find songs, artists, and albums to build your queue.',
   'apiBaseUrl': 'API base URL',
   'resolverUrl': 'Alger fallback resolver URL',
-  'resolverHelper': 'Optional. Example: http://127.0.0.1:30489',
+  'resolverHelper':
+      'Optional. macOS: http://127.0.0.1:30489 · Android emulator: '
+          'http://10.0.2.2:30489 · Physical phone: your Mac\'s LAN IP, e.g. '
+          'http://192.168.1.x:30489 — 127.0.0.1 will not work from a real device.',
   'testConnection': 'Test',
   'resolverTestOk': 'Connected',
   'resolverTestOkWithSources': 'Connected — sources: {sources}',
@@ -288,7 +291,10 @@ const _zhHans = {
   'searchEmptyBody': '查找歌曲、艺人和专辑，加入你的播放队列。',
   'apiBaseUrl': 'API 服务地址',
   'resolverUrl': 'Alger 备用解析服务地址',
-  'resolverHelper': '可选。例如：http://127.0.0.1:30489',
+  'resolverHelper':
+      '可选。macOS：http://127.0.0.1:30489 · Android模拟器：'
+          'http://10.0.2.2:30489 · 真机：填你 Mac 的局域网IP，例如 '
+          'http://192.168.1.x:30489 —— 真机上填 127.0.0.1 是连不上的。',
   'testConnection': '测试',
   'resolverTestOk': '连接成功',
   'resolverTestOkWithSources': '连接成功 — 可用源：{sources}',
@@ -380,7 +386,10 @@ const _zhHant = {
   'searchEmptyBody': '查找歌曲、藝人和專輯，加入你的播放佇列。',
   'apiBaseUrl': 'API 服務位址',
   'resolverUrl': 'Alger 備用解析服務位址',
-  'resolverHelper': '可選。例如：http://127.0.0.1:30489',
+  'resolverHelper':
+      '可選。macOS：http://127.0.0.1:30489 · Android模擬器：'
+          'http://10.0.2.2:30489 · 真機：填你 Mac 的區網IP，例如 '
+          'http://192.168.1.x:30489 —— 真機上填 127.0.0.1 是連不上的。',
   'testConnection': '測試',
   'resolverTestOk': '連接成功',
   'resolverTestOkWithSources': '連接成功 — 可用源：{sources}',
