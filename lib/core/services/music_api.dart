@@ -31,11 +31,30 @@ class _CachedJson {
 class ResolvedAudioSource {
   const ResolvedAudioSource({
     required this.url,
+    required this.method,
     this.source,
   });
 
   final String url;
   final String? source;
+  final ResolveMethod method;
+}
+
+/// Which top-level resolution path last produced a playable URL for a song.
+/// Remembering this lets repeat plays and stall recovery skip straight to
+/// the method that is actually likely to work, instead of re-running the
+/// full direct -> compatible -> legacy -> Alger cascade from scratch every
+/// single time.
+enum ResolveMethod { direct, compatible, compatibleLegacy, alger }
+
+class _RememberedMethod {
+  _RememberedMethod(this.method) : rememberedAt = DateTime.now();
+
+  final ResolveMethod method;
+  final DateTime rememberedAt;
+
+  bool get isFresh =>
+      DateTime.now().difference(rememberedAt) < const Duration(hours: 6);
 }
 
 class MusicApi {
@@ -50,7 +69,7 @@ class MusicApi {
       'https://netease-cloud-music-api-five-roan-88.vercel.app';
   static const defaultResolverBaseUrl = '';
   static const _requestTimeout = Duration(seconds: 8);
-  static const _probeTimeout = Duration(seconds: 6);
+  static const _probeTimeout = Duration(seconds: 4);
   static const _resolverTimeout = Duration(seconds: 45);
   static const _cacheTtl = Duration(minutes: 10);
   static const _maxAttempts = 3;
@@ -59,6 +78,7 @@ class MusicApi {
   final http.Client _client;
   final Map<String, _CachedJson> _cache = {};
   final Map<int, Set<String>> _blockedSourcesBySongId = {};
+  final Map<int, _RememberedMethod> _rememberedMethodBySongId = {};
   String _baseUrl;
   String _resolverBaseUrl = defaultResolverBaseUrl;
   DateTime? _resolverUnavailableUntil;
@@ -207,44 +227,133 @@ class MusicApi {
     return source?.url;
   }
 
+  /// Convenience wrapper returning only the first candidate — used by
+  /// downloads, which just need *a* playable URL, not a fallback chain.
   Future<ResolvedAudioSource?> resolveAudioSource(
     Song song, {
     String level = 'higher',
   }) async {
-    if (_usesDirectNetease) {
-      final directUrl = await _resolveWithDirectNetease(song);
-      if (directUrl != null) {
-        return ResolvedAudioSource(url: directUrl, source: 'netease');
-      }
+    await for (final candidate
+        in resolveAudioSourceCandidates(song, level: level)) {
+      return candidate;
+    }
+    return null;
+  }
 
-      final compatibleUrl = await _resolveWithCompatibleApi(
+  /// Lazily yields every candidate that passes source-level validation, in
+  /// priority order. A candidate passing this stage can still fail once the
+  /// player actually tries to load it (probe results aren't a 100%
+  /// guarantee) — the goal is playability, not stopping at the first
+  /// "probably fine" answer, so the caller should keep pulling from this
+  /// stream and trying each candidate for real until one actually plays,
+  /// only then calling [confirmWorkingSource]. Resolution is still lazy
+  /// (methods are only attempted as the caller asks for more), so the
+  /// common case — the first candidate actually plays — costs no more than
+  /// a single-candidate resolve.
+  Stream<ResolvedAudioSource> resolveAudioSourceCandidates(
+    Song song, {
+    String level = 'higher',
+    bool bypassResolverCooldown = false,
+  }) async* {
+    // VIP-only and pay-per-track songs always 404 from the unauthenticated
+    // direct/compatible APIs (confirmed: they respond with a definitive
+    // "no permission" error, not a transient failure) — only a multi-source
+    // Alger unblock can find a playable copy elsewhere. Skip straight to it
+    // instead of burning two guaranteed-failed network round trips first.
+    final fullOrder = _usesDirectNetease
+        ? const [
+            ResolveMethod.direct,
+            ResolveMethod.compatibleLegacy,
+            ResolveMethod.alger,
+          ]
+        : const [ResolveMethod.compatible, ResolveMethod.alger];
+    final defaultOrder =
+        song.requiresPaidAccess ? const [ResolveMethod.alger] : fullOrder;
+
+    final remembered = _rememberedMethodBySongId[song.id];
+    final order = remembered != null &&
+            remembered.isFresh &&
+            defaultOrder.contains(remembered.method)
+        ? [
+            remembered.method,
+            ...defaultOrder.where((m) => m != remembered.method),
+          ]
+        : defaultOrder;
+
+    for (final method in order) {
+      if (method == ResolveMethod.alger) {
+        developer.log(
+          'Trying Alger fallback for ${song.id}',
+          name: 'MuseHub.MusicApi',
+        );
+      }
+      final result = await _tryResolveMethod(
+        method,
         song,
         level: level,
-        useLegacyBase: true,
+        bypassResolverCooldown: bypassResolverCooldown,
       );
-      if (compatibleUrl != null) {
-        return ResolvedAudioSource(url: compatibleUrl, source: 'compatible');
-      }
-    } else {
-      final compatibleUrl = await _resolveWithCompatibleApi(song, level: level);
-      if (compatibleUrl != null) {
-        return ResolvedAudioSource(url: compatibleUrl, source: 'compatible');
-      }
+      if (result != null) yield result;
     }
+  }
 
-    developer.log(
-      'Primary URL unavailable for ${song.id}; trying Alger fallback',
-      name: 'MuseHub.MusicApi',
-    );
-    final resolvedUrl = await _resolveWithAlgerFallback(song);
-    if (resolvedUrl != null) return resolvedUrl;
+  /// Called once a candidate from [resolveAudioSourceCandidates] actually
+  /// started playing, so future plays/stall-recoveries for this song go
+  /// straight to it instead of re-running the full cascade.
+  void confirmWorkingSource(int songId, ResolvedAudioSource source) {
+    _rememberedMethodBySongId[songId] = _RememberedMethod(source.method);
+  }
 
-    return null;
+  Future<ResolvedAudioSource?> _tryResolveMethod(
+    ResolveMethod method,
+    Song song, {
+    required String level,
+    required bool bypassResolverCooldown,
+  }) async {
+    switch (method) {
+      case ResolveMethod.direct:
+        final url = await _resolveWithDirectNetease(song);
+        return url == null
+            ? null
+            : ResolvedAudioSource(url: url, source: 'netease', method: method);
+      case ResolveMethod.compatible:
+        final url = await _resolveWithCompatibleApi(song, level: level);
+        return url == null
+            ? null
+            : ResolvedAudioSource(
+                url: url, source: 'compatible', method: method);
+      case ResolveMethod.compatibleLegacy:
+        final url = await _resolveWithCompatibleApi(
+          song,
+          level: level,
+          useLegacyBase: true,
+        );
+        return url == null
+            ? null
+            : ResolvedAudioSource(
+                url: url, source: 'compatible', method: method);
+      case ResolveMethod.alger:
+        final resolved = await _resolveWithAlgerFallback(
+          song,
+          bypassCooldown: bypassResolverCooldown,
+        );
+        if (resolved == null) return null;
+        return ResolvedAudioSource(
+          url: resolved.url,
+          source: resolved.source,
+          method: method,
+        );
+    }
   }
 
   void temporarilyBlockSource(int songId, String? source) {
     if (source == null || source.isEmpty) return;
     (_blockedSourcesBySongId[songId] ??= <String>{}).add(source);
+    // The path that just failed mid-playback is no longer trustworthy;
+    // drop the memoized method so the next resolve re-runs the full
+    // cascade (now excluding the source blocked above) instead of
+    // immediately retrying the thing that just broke.
+    _rememberedMethodBySongId.remove(songId);
   }
 
   String? _readSongUrl(Map<String, dynamic> data) {
@@ -258,6 +367,10 @@ class MusicApi {
   }
 
   Future<String?> _resolveWithDirectNetease(Song song) async {
+    // maxAttempts: 1 — the outer method cascade (direct -> compatible ->
+    // legacy -> Alger) already provides redundancy across sources, so
+    // retrying 3x *within* a single hop just stacks latency on a path
+    // that's likely to fail the same way every time.
     final data = await _getOrNull(
       '/song/enhance/player/url',
       query: {
@@ -265,6 +378,7 @@ class MusicApi {
         'ids': '[${song.id}]',
         'br': '320000',
       },
+      maxAttempts: 1,
     );
     if (data == null) return null;
     return _validatedAudioUrl(_readSongUrl(data), durationMs: song.durationMs);
@@ -284,6 +398,7 @@ class MusicApi {
           'encodeType': 'aac',
         },
         useLegacyBase: useLegacyBase,
+        maxAttempts: 1,
       );
       if (data != null) {
         final url = _readSongUrl(data);
@@ -299,15 +414,21 @@ class MusicApi {
       '/song/url',
       query: {'id': '${song.id}', 'br': '128000'},
       useLegacyBase: useLegacyBase,
+      maxAttempts: 1,
     );
     if (data == null) return null;
     return _validatedAudioUrl(_readSongUrl(data), durationMs: song.durationMs);
   }
 
-  Future<ResolvedAudioSource?> _resolveWithAlgerFallback(Song song) async {
+  Future<ResolvedAudioSource?> _resolveWithAlgerFallback(
+    Song song, {
+    bool bypassCooldown = false,
+  }) async {
     if (_resolverBaseUrl.isEmpty) return null;
     final unavailableUntil = _resolverUnavailableUntil;
-    if (unavailableUntil != null && DateTime.now().isBefore(unavailableUntil)) {
+    if (!bypassCooldown &&
+        unavailableUntil != null &&
+        DateTime.now().isBefore(unavailableUntil)) {
       return null;
     }
 
@@ -375,6 +496,7 @@ class MusicApi {
       return ResolvedAudioSource(
         url: validatedUrl,
         source: resolved?.source ?? 'alger',
+        method: ResolveMethod.alger,
       );
     } on Object catch (error) {
       developer.log(
@@ -542,6 +664,7 @@ class MusicApi {
         return ResolvedAudioSource(
           url: url,
           source: payload['source']?.toString(),
+          method: ResolveMethod.alger,
         );
       }
     }
@@ -676,9 +799,15 @@ class MusicApi {
     String path, {
     Map<String, String>? query,
     bool useLegacyBase = false,
+    int maxAttempts = _maxAttempts,
   }) async {
     try {
-      return await _get(path, query: query, useLegacyBase: useLegacyBase);
+      return await _get(
+        path,
+        query: query,
+        useLegacyBase: useLegacyBase,
+        maxAttempts: maxAttempts,
+      );
     } on Object catch (_) {
       return null;
     }
@@ -689,6 +818,7 @@ class MusicApi {
     Map<String, String>? query,
     bool allowCacheFallback = false,
     bool useLegacyBase = false,
+    int maxAttempts = _maxAttempts,
   }) async {
     final cacheKey = _cacheKey(path, query, useLegacyBase: useLegacyBase);
     final cached = _cache[cacheKey];
@@ -703,7 +833,7 @@ class MusicApi {
     });
 
     Object? lastError;
-    for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         final response = await _client.get(uri).timeout(_requestTimeout);
         if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -719,7 +849,7 @@ class MusicApi {
           'Music API request failed (${response.statusCode}): ${uri.host}${uri.path}',
         );
         if (!_shouldRetryStatus(response.statusCode) ||
-            attempt == _maxAttempts) {
+            attempt == maxAttempts) {
           throw error;
         }
         lastError = error;
@@ -729,7 +859,7 @@ class MusicApi {
         lastError = error;
       }
 
-      if (attempt < _maxAttempts) {
+      if (attempt < maxAttempts) {
         await Future<void>.delayed(Duration(milliseconds: 300 * attempt));
       }
     }

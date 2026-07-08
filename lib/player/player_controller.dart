@@ -30,7 +30,7 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
     });
     _stallWatchdog = Timer.periodic(
-      const Duration(seconds: 4),
+      const Duration(seconds: 3),
       (_) => _checkPlaybackStall(),
     );
   }
@@ -51,6 +51,7 @@ class PlayerController extends ChangeNotifier {
   bool _isPlaying = false;
   bool _isLoading = false;
   String? _error;
+  int _errorVersion = 0;
   PlaybackRepeatMode _repeatMode = PlaybackRepeatMode.all;
   int _playRequestId = 0;
   Duration? _lastWatchdogPosition;
@@ -70,6 +71,12 @@ class PlayerController extends ChangeNotifier {
   bool get isPlaying => _isPlaying;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  /// Bumped every time a fresh playback failure occurs, even if the error
+  /// message text is identical to the previous one (e.g. retrying the same
+  /// VIP-locked track). UI can key a one-shot notification off this instead
+  /// of the message string, which would otherwise de-dupe repeat failures.
+  int get errorVersion => _errorVersion;
   PlaybackRepeatMode get repeatMode => _repeatMode;
 
   /// Dominant/vibrant color from the currently playing song's cover art.
@@ -109,7 +116,25 @@ class PlayerController extends ChangeNotifier {
     try {
       await _audio.stop();
       if (!_isCurrentRequest(requestId, song.id)) return;
-      final hydratedSong = await _hydrateSongForPlayback(song);
+
+      // Hydrating missing cover/artist metadata and resolving the playable
+      // audio URL are independent — audio resolution only needs the song id
+      // and duration, both already known. Running them in parallel instead
+      // of serially cuts a full network round trip off the time-to-first-
+      // sound on every play.
+      unawaited(_loadLyrics(song.id, requestId));
+      final hydrateFuture = _hydrateSongForPlayback(song);
+      // A fresh/manual play (including the user tapping play again after a
+      // failure) is a strong signal to retry the Alger resolver even if it
+      // had a recent hiccup — only automatic stall-recovery respects the
+      // cooldown, to avoid hammering a resolver that's genuinely down.
+      final loadAudioFuture = _loadAudioSource(
+        song,
+        requestId,
+        bypassResolverCooldown: true,
+      );
+
+      final hydratedSong = await hydrateFuture;
       if (!_isCurrentRequest(requestId, song.id)) return;
       if (!identical(hydratedSong, song)) {
         _current = hydratedSong;
@@ -122,8 +147,8 @@ class PlayerController extends ChangeNotifier {
             : Duration(milliseconds: hydratedSong.durationMs!);
         notifyListeners();
       }
-      unawaited(_loadLyrics(song.id, requestId));
-      await _loadAudioSource(hydratedSong, requestId);
+
+      await loadAudioFuture;
       if (!_isCurrentRequest(requestId, song.id)) return;
       await _audio.play();
     } catch (error) {
@@ -133,6 +158,7 @@ class PlayerController extends ChangeNotifier {
       _position = Duration.zero;
       _isPlaying = false;
       _error = error.toString();
+      _errorVersion++;
     } finally {
       if (_isCurrentRequest(requestId, song.id)) {
         _isLoading = false;
@@ -141,8 +167,11 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadAudioSource(Song song, int requestId) async {
-    var sourceLoaded = false;
+  Future<void> _loadAudioSource(
+    Song song,
+    int requestId, {
+    bool bypassResolverCooldown = false,
+  }) async {
     final localPath = await _localPathForSong(song.id);
     if (!_isCurrentRequest(requestId, song.id)) return;
     if (localPath != null) {
@@ -150,22 +179,50 @@ class PlayerController extends ChangeNotifier {
         await _audio
             .setFilePath(localPath)
             .timeout(const Duration(seconds: 12));
-        sourceLoaded = true;
+        return;
       } on Object {
-        sourceLoaded = false;
+        // Fall through to online candidates — a corrupted/moved download
+        // shouldn't be a dead end when the song might still stream fine.
       }
     }
-    if (sourceLoaded) return;
 
-    final resolved = await _api.resolveAudioSource(song);
+    // Playability is the goal, not stopping at the first "probably fine"
+    // candidate: a URL that passed MusicApi's lightweight validation can
+    // still fail once the player does a real GET against it (some CDNs
+    // behave differently for HEAD/range probes than full playback). Try
+    // every remaining candidate for real before finally giving up.
+    var triedAny = false;
+    Object? lastError;
+    await for (final candidate in _api.resolveAudioSourceCandidates(
+      song,
+      bypassResolverCooldown: bypassResolverCooldown,
+    )) {
+      if (!_isCurrentRequest(requestId, song.id)) return;
+      triedAny = true;
+      try {
+        await _audio.setUrl(candidate.url).timeout(const Duration(seconds: 12));
+        _currentAudioSource = candidate.source;
+        _api.confirmWorkingSource(song.id, candidate);
+        return;
+      } on Object catch (error) {
+        lastError = error;
+        // Try the next candidate instead of giving up on the first miss.
+      }
+    }
+
     if (!_isCurrentRequest(requestId, song.id)) return;
-    if (resolved == null) {
+    if (!triedAny) {
+      if (song.requiresPaidAccess && _api.resolverBaseUrl.isEmpty) {
+        throw const MusicApiException(
+          'This track requires Netease VIP membership. Enable the Alger '
+          'fallback resolver in Settings to play it from an alternate source.',
+        );
+      }
       throw const MusicApiException(
         'This track is unavailable from the current music source.',
       );
     }
-    _currentAudioSource = resolved.source;
-    await _audio.setUrl(resolved.url).timeout(const Duration(seconds: 12));
+    throw MusicApiException('$lastError');
   }
 
   Future<String?> _localPathForSong(int songId) async {
@@ -249,7 +306,12 @@ class PlayerController extends ChangeNotifier {
     }
 
     _stalledTicks += 1;
-    if (_stalledTicks >= 3) {
+    // 2 ticks @ 3s = ~6s of visibly stuck playback before we intervene —
+    // down from the previous 12s. Recovery itself is now much faster too
+    // (MusicApi retries the last-known-good source first), so shortening
+    // detection no longer risks a slow, disruptive recovery for what might
+    // just be a brief buffering blip.
+    if (_stalledTicks >= 2) {
       _stalledTicks = 0;
       unawaited(_recoverStalledPlayback());
     }
@@ -284,6 +346,7 @@ class PlayerController extends ChangeNotifier {
       if (!_isCurrentRequest(requestId, song.id)) return;
       _isPlaying = false;
       _error = error.toString();
+      _errorVersion++;
     } finally {
       _recoveringStall = false;
       _resetStallWatchdog();

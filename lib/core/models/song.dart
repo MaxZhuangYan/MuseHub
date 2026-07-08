@@ -12,6 +12,7 @@ class Song {
     required this.album,
     required this.coverUrl,
     this.durationMs,
+    this.fee = 0,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
@@ -59,6 +60,7 @@ class Song {
             songJson['dt'] ??
             songJson['duration'],
       ),
+      fee: _readInt(json['fee'] ?? songJson['fee']),
     );
   }
 
@@ -105,6 +107,7 @@ class Song {
       album: details.album.isNotEmpty ? details.album : album,
       coverUrl: details.coverUrl.isNotEmpty ? details.coverUrl : coverUrl,
       durationMs: details.durationMs ?? durationMs,
+      fee: details.fee != 0 ? details.fee : fee,
     );
   }
 
@@ -114,6 +117,14 @@ class Song {
   final String album;
   final String coverUrl;
   final int? durationMs;
+
+  /// Netease copyright/payment flag: 0 = free, 1 = VIP-only, 4 = pay-per-
+  /// track (album purchase). Tracks with these flags will never resolve a
+  /// URL from the unauthenticated direct/compatible APIs — only an Alger
+  /// (multi-source unblock) fallback can find a playable copy elsewhere.
+  final int fee;
+
+  bool get requiresPaidAccess => fee == 1 || fee == 4;
 
   String get artistText {
     if (artists.isEmpty) return 'Unknown artist';

@@ -89,6 +89,8 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  PlayerController? _player;
+  int _lastShownErrorVersion = 0;
 
   static const _pages = [
     HomePage(),
@@ -96,6 +98,46 @@ class _AppShellState extends State<AppShell> {
     LibraryPage(),
     SettingsPage(),
   ];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final player = context.read<PlayerController>();
+    if (!identical(player, _player)) {
+      _player?.removeListener(_handlePlayerChange);
+      _player = player;
+      _lastShownErrorVersion = player.errorVersion;
+      player.addListener(_handlePlayerChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    _player?.removeListener(_handlePlayerChange);
+    super.dispose();
+  }
+
+  // Playback failures otherwise only flip the play button to a "replay"
+  // icon with no explanation. Surface the reason so a VIP-locked track or
+  // a dead source doesn't just look like the app silently doing nothing.
+  void _handlePlayerChange() {
+    final player = _player;
+    final error = player?.error;
+    if (player == null ||
+        error == null ||
+        player.errorVersion == _lastShownErrorVersion) {
+      return;
+    }
+    _lastShownErrorVersion = player.errorVersion;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

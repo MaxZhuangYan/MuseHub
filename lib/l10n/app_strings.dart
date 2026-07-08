@@ -72,6 +72,15 @@ class AppStrings {
   String get apiBaseUrl => _t('apiBaseUrl');
   String get resolverUrl => _t('resolverUrl');
   String get resolverHelper => _t('resolverHelper');
+  String get testConnection => _t('testConnection');
+  String get resolverTestOk => _t('resolverTestOk');
+  String resolverTestOkWithSources(String sources) =>
+      _t('resolverTestOkWithSources').replaceAll('{sources}', sources);
+  String get resolverTestEmpty => _t('resolverTestEmpty');
+  String get resolverTestTimeout => _t('resolverTestTimeout');
+  String get resolverTestUnreachable => _t('resolverTestUnreachable');
+  String resolverTestBadStatus(int code) =>
+      _t('resolverTestBadStatus').replaceAll('{code}', '$code');
   String get serverBaseUrl => _t('serverBaseUrl');
   String get serverHelper => _t('serverHelper');
   String get musicServicesUpdated => _t('musicServicesUpdated');
@@ -98,6 +107,8 @@ class AppStrings {
       _t('savedLocally').replaceAll('{count}', '$count');
   String get mobileRebuild => _t('mobileRebuild');
   String get mobileRebuildBody => _t('mobileRebuildBody');
+  String get about => _t('about');
+  String get buildInfoCopied => _t('buildInfoCopied');
   String get yourFavorites => _t('yourFavorites');
   String get favoritesEmpty => _t('favoritesEmpty');
   String get favorites => _t('favorites');
@@ -183,6 +194,13 @@ const _en = {
   'apiBaseUrl': 'API base URL',
   'resolverUrl': 'Alger fallback resolver URL',
   'resolverHelper': 'Optional. Example: http://127.0.0.1:30489',
+  'testConnection': 'Test',
+  'resolverTestOk': 'Connected',
+  'resolverTestOkWithSources': 'Connected — sources: {sources}',
+  'resolverTestEmpty': 'Enter a resolver URL first.',
+  'resolverTestTimeout': 'Timed out. Is the resolver running and reachable?',
+  'resolverTestUnreachable': 'Could not reach this address.',
+  'resolverTestBadStatus': 'Resolver responded with an error ({code}).',
   'serverBaseUrl': 'MuseHub Server URL',
   'serverHelper': 'Example: http://127.0.0.1:30490',
   'musicServicesUpdated': 'Music services updated',
@@ -207,7 +225,10 @@ const _en = {
   'favoriteSongs': 'Favorite songs',
   'savedLocally': '{count} favorites',
   'mobileRebuild': 'Mobile rebuild',
-  'mobileRebuildBody': 'A cross-platform MuseHub music client built with Flutter',
+  'mobileRebuildBody':
+      'A cross-platform MuseHub music client built with Flutter',
+  'about': 'About',
+  'buildInfoCopied': 'Build info copied',
   'yourFavorites': 'Your favorites',
   'favoritesEmpty':
       'Favorite songs from Home, Search, or the player will appear here.',
@@ -268,6 +289,13 @@ const _zhHans = {
   'apiBaseUrl': 'API 服务地址',
   'resolverUrl': 'Alger 备用解析服务地址',
   'resolverHelper': '可选。例如：http://127.0.0.1:30489',
+  'testConnection': '测试',
+  'resolverTestOk': '连接成功',
+  'resolverTestOkWithSources': '连接成功 — 可用源：{sources}',
+  'resolverTestEmpty': '请先填写解析器地址。',
+  'resolverTestTimeout': '连接超时，解析器是否正在运行且可访问？',
+  'resolverTestUnreachable': '无法连接到该地址。',
+  'resolverTestBadStatus': '解析器返回了错误（{code}）。',
   'serverBaseUrl': 'MuseHub Server 地址',
   'serverHelper': '例如：http://127.0.0.1:30490',
   'musicServicesUpdated': '音乐服务已更新',
@@ -293,6 +321,8 @@ const _zhHans = {
   'savedLocally': '已收藏 {count} 首',
   'mobileRebuild': '移动版重构',
   'mobileRebuildBody': '基于 Flutter 构建的 MuseHub 跨平台音乐客户端',
+  'about': '关于',
+  'buildInfoCopied': '构建信息已复制',
   'yourFavorites': '你的收藏',
   'favoritesEmpty': '在首页、搜索或播放器里收藏的歌曲会显示在这里。',
   'favorites': '收藏',
@@ -351,6 +381,13 @@ const _zhHant = {
   'apiBaseUrl': 'API 服務位址',
   'resolverUrl': 'Alger 備用解析服務位址',
   'resolverHelper': '可選。例如：http://127.0.0.1:30489',
+  'testConnection': '測試',
+  'resolverTestOk': '連接成功',
+  'resolverTestOkWithSources': '連接成功 — 可用源：{sources}',
+  'resolverTestEmpty': '請先填寫解析器位址。',
+  'resolverTestTimeout': '連接逾時，解析器是否正在執行且可存取？',
+  'resolverTestUnreachable': '無法連接到該位址。',
+  'resolverTestBadStatus': '解析器回傳了錯誤（{code}）。',
   'serverBaseUrl': 'MuseHub Server 位址',
   'serverHelper': '例如：http://127.0.0.1:30490',
   'musicServicesUpdated': '音樂服務已更新',
@@ -376,6 +413,8 @@ const _zhHant = {
   'savedLocally': '已收藏 {count} 首',
   'mobileRebuild': '行動版重構',
   'mobileRebuildBody': '基於 Flutter 構建的 MuseHub 跨平台音樂客戶端',
+  'about': '關於',
+  'buildInfoCopied': '建置資訊已複製',
   'yourFavorites': '你的收藏',
   'favoritesEmpty': '在首頁、搜尋或播放器裡收藏的歌曲會顯示在這裡。',
   'favorites': '收藏',

@@ -1,8 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
+import '../../core/build_info.dart';
 import '../../core/services/music_api.dart';
 import '../../l10n/app_strings.dart';
 
@@ -105,9 +111,8 @@ class _SettingsPageState extends State<SettingsPage> {
               label: strings.apiBaseUrl,
             ),
             _Divider(),
-            _SettingsTextField(
+            _ResolverField(
               controller: _resolverController,
-              icon: Icons.hub_rounded,
               label: strings.resolverUrl,
               helper: strings.resolverHelper,
             ),
@@ -176,6 +181,30 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: Icons.phone_android_rounded,
               title: strings.mobileRebuild,
               subtitle: strings.mobileRebuildBody,
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // ── About section ──
+        _SectionLabel(strings.about),
+        _SettingsCard(
+          children: [
+            _SettingsRow(
+              icon: Icons.info_outline_rounded,
+              title: strings.appName,
+              subtitle: BuildInfo.label,
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: BuildInfo.label));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(strings.buildInfoCopied),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: scheme.surfaceContainerHigh,
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -541,6 +570,238 @@ class _SettingsTextField extends StatelessWidget {
                 fontSize: 11,
                 color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+enum _ResolverTestState { idle, testing, success, failure }
+
+/// Resolver URL field with a one-tap "test connection" action — hits the
+/// resolver's /health endpoint directly from the phone so the user knows
+/// immediately whether a locally- or LAN-hosted `tools/alger_resolver`
+/// instance is actually reachable, instead of only finding out when a
+/// VIP-locked song silently fails to play.
+class _ResolverField extends StatefulWidget {
+  const _ResolverField({
+    required this.controller,
+    required this.label,
+    this.helper,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String? helper;
+
+  @override
+  State<_ResolverField> createState() => _ResolverFieldState();
+}
+
+class _ResolverFieldState extends State<_ResolverField> {
+  _ResolverTestState _state = _ResolverTestState.idle;
+  String? _resultMessage;
+
+  Future<void> _testConnection() async {
+    final strings = AppStrings.of(context);
+    final raw = widget.controller.text.trim();
+    if (raw.isEmpty) {
+      setState(() {
+        _state = _ResolverTestState.failure;
+        _resultMessage = strings.resolverTestEmpty;
+      });
+      return;
+    }
+
+    setState(() {
+      _state = _ResolverTestState.testing;
+      _resultMessage = null;
+    });
+
+    try {
+      final base = MusicApi.normalizeOptionalBaseUrl(raw);
+      final uri = Uri.parse('$base/health');
+      final response = await http.get(uri).timeout(const Duration(seconds: 6));
+      if (!mounted) return;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        setState(() {
+          _state = _ResolverTestState.failure;
+          _resultMessage = strings.resolverTestBadStatus(response.statusCode);
+        });
+        return;
+      }
+      final decoded = jsonDecode(response.body);
+      // tools/alger_resolver returns a flat list of source-id strings;
+      // musehub-server returns a list of {id, capabilities} objects. Accept
+      // either shape.
+      final sources = decoded is Map<String, dynamic>
+          ? ((decoded['sources'] as List?)
+                  ?.map((s) => s is Map ? '${s['id']}' : '$s')
+                  .where((s) => s.isNotEmpty && s != 'null')
+                  .toList() ??
+              const <String>[])
+          : const <String>[];
+      setState(() {
+        _state = _ResolverTestState.success;
+        _resultMessage = sources.isEmpty
+            ? strings.resolverTestOk
+            : strings.resolverTestOkWithSources(sources.join(', '));
+      });
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _state = _ResolverTestState.failure;
+        _resultMessage = strings.resolverTestTimeout;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _state = _ResolverTestState.failure;
+        _resultMessage = strings.resolverTestUnreachable;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.hub_rounded, size: 16, color: scheme.primaryContainer),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: GoogleFonts.hankenGrotesk(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: widget.controller,
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 13,
+                    color: scheme.onSurface,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    filled: true,
+                    fillColor: scheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: scheme.primaryContainer, width: 1.5),
+                    ),
+                  ),
+                  keyboardType: TextInputType.url,
+                  onChanged: (_) {
+                    if (_state != _ResolverTestState.idle) {
+                      setState(() {
+                        _state = _ResolverTestState.idle;
+                        _resultMessage = null;
+                      });
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 38,
+                child: OutlinedButton(
+                  onPressed: _state == _ResolverTestState.testing
+                      ? null
+                      : _testConnection,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: scheme.primaryContainer,
+                    side: BorderSide(
+                        color: scheme.primaryContainer.withValues(alpha: 0.4)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: _state == _ResolverTestState.testing
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: scheme.primaryContainer,
+                          ),
+                        )
+                      : Text(
+                          strings.testConnection,
+                          style: GoogleFonts.hankenGrotesk(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+          if (widget.helper != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              widget.helper!,
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 11,
+                color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+          if (_resultMessage != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  _state == _ResolverTestState.success
+                      ? Icons.check_circle_rounded
+                      : Icons.error_rounded,
+                  size: 14,
+                  color: _state == _ResolverTestState.success
+                      ? const Color(0xFF4CAF7D)
+                      : scheme.error,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _resultMessage!,
+                    style: GoogleFonts.hankenGrotesk(
+                      fontSize: 11,
+                      color: _state == _ResolverTestState.success
+                          ? const Color(0xFF4CAF7D)
+                          : scheme.error,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
