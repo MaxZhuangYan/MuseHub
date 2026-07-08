@@ -35,6 +35,13 @@ class PlayerController extends ChangeNotifier {
     );
   }
 
+  static const _audioStreamHeaders = {
+    'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    'Referer': 'https://music.163.com/',
+  };
+
   final MusicApi _api;
   final DownloadService _downloads;
   final AudioPlayer _audio = AudioPlayer();
@@ -200,7 +207,15 @@ class PlayerController extends ChangeNotifier {
       if (!_isCurrentRequest(requestId, song.id)) return;
       triedAny = true;
       try {
-        await _audio.setUrl(candidate.url).timeout(const Duration(seconds: 12));
+        // Netease's CDN enforces Referer-based hotlink protection on some
+        // edges — most visibly on realIP-unlocked URLs, which are already
+        // bypassing a restriction and so get checked more strictly. Our own
+        // validation probe sends these headers and passes; without them
+        // here too, just_audio's request can come back empty/blocked even
+        // though resolution "succeeded". Same convention as CoverArt.
+        await _audio
+            .setUrl(candidate.url, headers: _audioStreamHeaders)
+            .timeout(const Duration(seconds: 12));
         _currentAudioSource = candidate.source;
         _api.confirmWorkingSource(song.id, candidate);
         return;
