@@ -14,7 +14,7 @@ import 'package:musehub/main.dart';
 import 'package:musehub/player/player_controller.dart';
 
 void main() {
-  testWidgets('renders the MuseHub app shell', (tester) async {
+  testWidgets('renders the MuseHub app chrome', (tester) async {
     await tester.pumpWidget(
       MuseHubApp(api: MusicApi(), serverApi: MuseHubServerApi()),
     );

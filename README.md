@@ -59,7 +59,7 @@ lib/
   core/                 Flutter app state, API clients, models, theme, widgets
   features/             Home, search, library, settings, player screens
   player/               Queue and playback controller
-  main.dart             Flutter app shell
+  main.dart             Flutter app entry point
 
 musehub-server/
   src/                  Hono + SQLite backend
