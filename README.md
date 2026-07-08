@@ -1,5 +1,7 @@
 # MuseHub
 
+[简体中文](README.zh-CN.md)
+
 MuseHub is a Flutter music client and self-hosted music orchestration stack
 inspired by [AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer).
 
@@ -23,8 +25,13 @@ Release artifacts:
 Notes:
 
 - The Android APK is release-built but not signed with a production keystore.
-- The iOS build is unsigned and must be signed in Xcode before device install.
+- The iOS artifact is an unsigned `Runner.app` zip. It proves the release build
+  passes, but it cannot be installed directly like an APK. Sign it in Xcode, or
+  create an Archive for TestFlight, Ad Hoc, or App Store distribution.
 - Windows builds must be produced on a Windows machine or CI runner.
+
+For local iPhone testing, open `ios/Runner.xcworkspace` in Xcode, select your
+Apple development team, connect an iPhone, and run/sign from Xcode.
 
 ## Server Setup
 
