@@ -367,7 +367,8 @@ class MusicApi {
     if (kIsWeb) return url;
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
-    if (await _looksPlayableAudioUrl(uri)) return url;
+    final probeResult = await _probeAudioUrl(uri);
+    if (probeResult != false) return url;
     developer.log(
       'Rejected non-playable audio URL: $url',
       name: 'MuseHub.MusicApi',
@@ -375,14 +376,17 @@ class MusicApi {
     return null;
   }
 
-  Future<bool> _looksPlayableAudioUrl(Uri uri) async {
+  Future<bool?> _probeAudioUrl(Uri uri) async {
     try {
       final response = await _client
           .head(uri, headers: _audioProbeHeaders)
           .timeout(_probeTimeout);
-      if (_isLikelyAudioResponse(response.statusCode, response.headers)) {
-        return true;
-      }
+      final result = _audioProbeResult(
+        response.statusCode,
+        response.headers,
+        isRangeProbe: false,
+      );
+      if (result != null) return result;
     } on Object {
       // Some music CDNs reject HEAD; fall through to a byte-range probe.
     }
@@ -393,13 +397,21 @@ class MusicApi {
         ..headers['range'] = 'bytes=0-0';
       final response = await _client.send(request).timeout(_probeTimeout);
       await response.stream.drain<void>();
-      return _isLikelyAudioResponse(response.statusCode, response.headers);
+      return _audioProbeResult(
+        response.statusCode,
+        response.headers,
+        isRangeProbe: true,
+      );
     } on Object {
-      return false;
+      return null;
     }
   }
 
-  bool _isLikelyAudioResponse(int statusCode, Map<String, String> headers) {
+  bool? _audioProbeResult(
+    int statusCode,
+    Map<String, String> headers, {
+    required bool isRangeProbe,
+  }) {
     if (statusCode < 200 || statusCode >= 300) return false;
     final contentType = (headers['content-type'] ?? '').toLowerCase();
     if (contentType.contains('json') ||
@@ -408,13 +420,18 @@ class MusicApi {
       return false;
     }
     final contentLength = int.tryParse(headers['content-length'] ?? '');
-    if (contentLength != null &&
+    if (!isRangeProbe &&
+        contentLength != null &&
         contentLength > 0 &&
         contentLength < _minLikelyAudioBytes) {
       return false;
     }
-    return contentType.isEmpty ||
-        contentType.startsWith('audio/') ||
+    if (contentType.isEmpty) {
+      return contentLength == null || isRangeProbe
+          ? null
+          : contentLength >= _minLikelyAudioBytes;
+    }
+    return contentType.startsWith('audio/') ||
         contentType.contains('octet-stream') ||
         contentType.contains('mpegurl') ||
         contentType.contains('mp4') ||

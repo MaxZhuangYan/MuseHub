@@ -228,7 +228,7 @@ async function isUsableAudio(data) {
 
   try {
     const head = await requestHead(data.url);
-    const validation = validateAudioProbe(head);
+    const validation = validateAudioProbe(head, { isRangeProbe: false });
     if (validation.ok) return validation;
   } catch (_) {
     // Some music CDNs reject HEAD; fall through to a byte-range probe.
@@ -236,7 +236,7 @@ async function isUsableAudio(data) {
 
   try {
     const probe = await requestRangeProbe(data.url);
-    const validation = validateAudioProbe(probe);
+    const validation = validateAudioProbe(probe, { isRangeProbe: true });
     if (!validation.ok) return validation;
     return { ok: true };
   } catch (error) {
@@ -247,7 +247,7 @@ async function isUsableAudio(data) {
   }
 }
 
-function validateAudioProbe(probe) {
+function validateAudioProbe(probe, { isRangeProbe }) {
   if (probe.statusCode < 200 || probe.statusCode >= 300) {
     return { ok: false, reason: `bad status: ${probe.statusCode}` };
   }
@@ -259,7 +259,11 @@ function validateAudioProbe(probe) {
   ) {
     return { ok: false, reason: `not audio: ${probe.contentType}` };
   }
-  if (probe.contentLength > 0 && probe.contentLength < MIN_AUDIO_BYTES) {
+  if (
+    !isRangeProbe &&
+    probe.contentLength > 0 &&
+    probe.contentLength < MIN_AUDIO_BYTES
+  ) {
     return {
       ok: false,
       reason: `remote audio too small: ${probe.contentLength} bytes`,
