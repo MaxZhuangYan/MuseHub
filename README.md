@@ -5,7 +5,7 @@
 MuseHub is a Flutter music client and self-hosted music orchestration stack
 inspired by [AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer).
 
-The current `v0.1.0` release includes a Flutter app, a Node.js/SQLite backend,
+The current `v0.1.1` release includes a Flutter app, a Node.js/SQLite backend,
 account login, favorite sync, local music source support, Netease-compatible
 search/playback, and optional Alger/unblock resolver fallback.
 
@@ -13,14 +13,14 @@ search/playback, and optional Alger/unblock resolver fallback.
 
 Latest release:
 
-[MuseHub v0.1.0](https://github.com/MaxZhuangYan/MuseHub/releases/tag/v0.1.0)
+[MuseHub v0.1.1](https://github.com/MaxZhuangYan/MuseHub/releases/tag/v0.1.1)
 
 Release artifacts:
 
-- Android: `MuseHub-v0.1.0-android-arm64-release.apk`
-- macOS: `MuseHub-v0.1.0-macos-arm64.zip`
-- Web: `MuseHub-v0.1.0-web.zip`
-- iOS: `MuseHub-v0.1.0-ios-unsigned.zip`
+- Android: `MuseHub-v0.1.1-android-arm64-release.apk`
+- macOS: `MuseHub-v0.1.1-macos-arm64.zip`
+- Web: `MuseHub-v0.1.1-web.zip`
+- iOS: `MuseHub-v0.1.1-ios-unsigned.zip`
 
 Notes:
 
@@ -73,7 +73,7 @@ musehub-server/
   scripts/              Smoke tests and sample data helper
 
 tools/alger_resolver/   Optional unblock resolver wrapper
-release/v0.1.0/         Packaged release artifacts
+release/v0.1.1/         Packaged release artifacts
 ```
 
 ## Run Flutter App
@@ -167,8 +167,13 @@ npm run smoke
 
 ## Release Notes
 
-`v0.1.0` is a preview release. It is usable for local testing and server-backed
-favorite sync, but production distribution still needs:
+`v0.1.1` is a playback stability release. It improves playback in overseas
+network environments, filters short preview/truncated audio sources more
+aggressively, sends CDN-compatible audio request headers during playback, and
+adds smoother lyrics tracking in the full player.
+
+It is usable for local testing and server-backed favorite sync, but production
+distribution still needs:
 
 - Android production signing configuration
 - iOS Apple signing and provisioning

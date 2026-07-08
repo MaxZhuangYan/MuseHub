@@ -5,21 +5,21 @@
 MuseHub 是一个 Flutter 音乐客户端和自托管音乐编排服务，产品方向参考
 [AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer)。
 
-当前 `v0.1.0` 版本包含 Flutter App、Node.js/SQLite 后端、账号登录、收藏同步、
+当前 `v0.1.1` 版本包含 Flutter App、Node.js/SQLite 后端、账号登录、收藏同步、
 本地音乐源、网易云兼容搜索/播放，以及可选的 Alger/unblock 备用解析。
 
 ## 下载
 
 最新版本：
 
-[MuseHub v0.1.0](https://github.com/MaxZhuangYan/MuseHub/releases/tag/v0.1.0)
+[MuseHub v0.1.1](https://github.com/MaxZhuangYan/MuseHub/releases/tag/v0.1.1)
 
 发布包：
 
-- Android：`MuseHub-v0.1.0-android-arm64-release.apk`
-- macOS：`MuseHub-v0.1.0-macos-arm64.zip`
-- Web：`MuseHub-v0.1.0-web.zip`
-- iOS：`MuseHub-v0.1.0-ios-unsigned.zip`
+- Android：`MuseHub-v0.1.1-android-arm64-release.apk`
+- macOS：`MuseHub-v0.1.1-macos-arm64.zip`
+- Web：`MuseHub-v0.1.1-web.zip`
+- iOS：`MuseHub-v0.1.1-ios-unsigned.zip`
 
 说明：
 
@@ -70,7 +70,7 @@ musehub-server/
   scripts/              Smoke test 和示例数据脚本
 
 tools/alger_resolver/   可选 unblock resolver 包装服务
-release/v0.1.0/         已打包的发布产物
+release/v0.1.1/         已打包的发布产物
 ```
 
 ## 运行 Flutter App
@@ -163,7 +163,10 @@ npm run smoke
 
 ## 发布说明
 
-`v0.1.0` 是 preview 版本，可以用于本地测试和基于 server 的收藏同步。正式分发还需要：
+`v0.1.1` 是播放稳定性版本，重点改善海外网络环境下的播放链路，增强短试听片段和截断音频源过滤，
+播放时补齐 CDN 兼容请求头，并优化全屏播放器歌词跟踪体验。
+
+这个版本可以用于本地测试和基于 server 的收藏同步。正式分发还需要：
 
 - Android 正式签名配置
 - iOS Apple 签名和 provisioning
