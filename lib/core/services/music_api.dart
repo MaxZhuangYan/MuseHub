@@ -50,6 +50,7 @@ class MusicApi {
   final Map<String, _CachedJson> _cache = {};
   String _baseUrl;
   String _resolverBaseUrl = defaultResolverBaseUrl;
+  DateTime? _resolverUnavailableUntil;
 
   String get baseUrl => _baseUrl;
   String get resolverBaseUrl => _resolverBaseUrl;
@@ -61,6 +62,7 @@ class MusicApi {
 
   set resolverBaseUrl(String value) {
     _resolverBaseUrl = _normalizeOptionalBaseUrl(value);
+    _resolverUnavailableUntil = null;
   }
 
   Future<HomeSnapshot> getHomeSnapshot() async {
@@ -271,6 +273,10 @@ class MusicApi {
 
   Future<String?> _resolveWithAlgerFallback(Song song) async {
     if (_resolverBaseUrl.isEmpty) return null;
+    final unavailableUntil = _resolverUnavailableUntil;
+    if (unavailableUntil != null && DateTime.now().isBefore(unavailableUntil)) {
+      return null;
+    }
 
     final uri = Uri.parse('$_resolverBaseUrl/unblock-music');
     final payload = {
@@ -327,8 +333,21 @@ class MusicApi {
         'Alger fallback failed for ${song.id}: $error',
         name: 'MuseHub.MusicApi',
       );
+      if (_isLocalResolverUrl(uri)) {
+        _resolverUnavailableUntil = DateTime.now().add(
+          const Duration(minutes: 2),
+        );
+      }
       return null;
     }
+  }
+
+  bool _isLocalResolverUrl(Uri uri) {
+    final host = uri.host.toLowerCase();
+    return host == '127.0.0.1' ||
+        host == 'localhost' ||
+        host == '::1' ||
+        host == '10.0.2.2';
   }
 
   Future<List<Song>> _searchSongsFromAll(List<_ApiEndpoint> endpoints) async {

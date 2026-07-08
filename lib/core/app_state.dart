@@ -272,7 +272,8 @@ class AppState extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_sessionTokenKey, result.token);
       try {
-        await _syncFavoritesFromServer(result.token, uploadLocalFavorites: true);
+        await _syncFavoritesFromServer(result.token,
+            uploadLocalFavorites: true);
       } on Object {
         // Auth should not fail just because sync is temporarily unavailable.
       }
@@ -394,6 +395,7 @@ class AppState extends ChangeNotifier {
 
   static String get _defaultResolverBaseUrl {
     if (kIsWeb) return MusicApi.defaultResolverBaseUrl;
+    if (!kDebugMode) return MusicApi.defaultResolverBaseUrl;
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'http://10.0.2.2:30489',
       TargetPlatform.macOS => 'http://127.0.0.1:30489',
