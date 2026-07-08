@@ -6,6 +6,7 @@ import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
+import '../../core/models/lyric_line.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/cover_art.dart';
 import '../../l10n/app_strings.dart';
@@ -338,8 +339,6 @@ class _FullPlayerPageState extends State<FullPlayerPage> {
   }
 
   void _showLyrics(BuildContext context) {
-    final player = context.read<PlayerController>();
-    final strings = AppStrings.of(context);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -347,47 +346,100 @@ class _FullPlayerPageState extends State<FullPlayerPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
-        final lyrics = player.lyrics;
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
-          children: [
-            Text(
-              strings.lyrics,
-              style: GoogleFonts.sora(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: MuseTheme.textPrimary,
+      builder: (context) => _LyricsSheet(accent: _vibrant),
+    );
+  }
+}
+
+/// Lyrics sheet content, split out so it can `watch` [PlayerController] and
+/// keep rebuilding as playback advances — the old inline builder only ran
+/// once at open time, so the highlighted line (and any attempt to scroll to
+/// it) was frozen at whatever was active the instant the sheet appeared.
+class _LyricsSheet extends StatefulWidget {
+  const _LyricsSheet({required this.accent});
+  final Color accent;
+
+  @override
+  State<_LyricsSheet> createState() => _LyricsSheetState();
+}
+
+class _LyricsSheetState extends State<_LyricsSheet> {
+  final _scrollController = ScrollController();
+  final Map<int, GlobalKey> _lineKeys = {};
+  LyricLine? _lastScrolledLine;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToActiveLine(LyricLine? active, List<LyricLine> lyrics) {
+    if (active == null || identical(active, _lastScrolledLine)) return;
+    _lastScrolledLine = active;
+    final index = lyrics.indexOf(active);
+    if (index == -1) return;
+    final lineContext = _lineKeys[index]?.currentContext;
+    if (lineContext == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        lineContext,
+        alignment: 0.4,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final player = context.watch<PlayerController>();
+    final strings = AppStrings.of(context);
+    final lyrics = player.lyrics;
+    final active = player.activeLyric;
+
+    _scrollToActiveLine(active, lyrics);
+
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+      children: [
+        Text(
+          strings.lyrics,
+          style: GoogleFonts.sora(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: MuseTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (lyrics.isEmpty)
+          Text(
+            strings.lyricsUnavailable,
+            style: GoogleFonts.hankenGrotesk(
+                fontSize: 14, color: MuseTheme.textSecondary),
+          )
+        else
+          for (var i = 0; i < lyrics.length; i++)
+            Padding(
+              key: _lineKeys.putIfAbsent(i, () => GlobalKey()),
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                lyrics[i].text,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.hankenGrotesk(
+                  fontSize: 16,
+                  fontWeight: lyrics[i] == active
+                      ? FontWeight.w800
+                      : FontWeight.w500,
+                  color: lyrics[i] == active
+                      ? widget.accent
+                      : MuseTheme.textPrimary.withValues(alpha: 0.42),
+                ),
               ),
             ),
-            const SizedBox(height: 20),
-            if (lyrics.isEmpty)
-              Text(
-                strings.lyricsUnavailable,
-                style: GoogleFonts.hankenGrotesk(
-                    fontSize: 14, color: MuseTheme.textSecondary),
-              )
-            else
-              for (final line in lyrics)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text(
-                    line.text,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.hankenGrotesk(
-                      fontSize: 16,
-                      fontWeight: line == player.activeLyric
-                          ? FontWeight.w800
-                          : FontWeight.w500,
-                      color: line == player.activeLyric
-                          ? _vibrant
-                          : MuseTheme.textPrimary.withValues(alpha: 0.42),
-                    ),
-                  ),
-                ),
-          ],
-        );
-      },
+      ],
     );
   }
 }

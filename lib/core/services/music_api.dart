@@ -634,29 +634,43 @@ class MusicApi {
         contentType.startsWith('text/plain')) {
       return false;
     }
-    final contentLength = int.tryParse(headers['content-length'] ?? '');
+
+    // A HEAD probe's content-length is the true file size. A range probe's
+    // content-length is just the requested chunk (e.g. 1 byte for
+    // "bytes=0-0") — the true total lives in Content-Range's "/TOTAL"
+    // suffix instead. Without reading that, a truncated 试听/preview clip
+    // (a real, short, genuinely-audio file — everything else about it
+    // looks fine) would sail through the size check every time the HEAD
+    // probe happens to fail and we fall back to range-probing.
+    final totalSize = isRangeProbe
+        ? _totalSizeFromContentRange(headers['content-range'])
+        : int.tryParse(headers['content-length'] ?? '');
     final minimumBytes = _minimumExpectedAudioBytes(durationMs);
-    if (!isRangeProbe && contentLength != null && contentLength > 0) {
-      if (contentLength < minimumBytes) return false;
-    }
-    if (!isRangeProbe &&
-        contentLength == null &&
-        minimumBytes > _minLikelyAudioBytes) {
-      return null;
-    }
-    if (!isRangeProbe && contentLength == 0) {
+    if (totalSize != null && totalSize > 0 && totalSize < minimumBytes) {
       return false;
     }
+    if (totalSize == null && minimumBytes > _minLikelyAudioBytes) {
+      // We don't know the real size and expected a substantial track —
+      // can't rule out a preview clip, but can't confirm one either.
+      return null;
+    }
+    if (totalSize == 0) return false;
+
     if (contentType.isEmpty) {
-      return contentLength == null || isRangeProbe
-          ? null
-          : contentLength >= minimumBytes;
+      return totalSize == null ? null : totalSize >= minimumBytes;
     }
     return contentType.startsWith('audio/') ||
         contentType.contains('octet-stream') ||
         contentType.contains('mpegurl') ||
         contentType.contains('mp4') ||
         contentType.contains('flac');
+  }
+
+  int? _totalSizeFromContentRange(String? contentRange) {
+    if (contentRange == null) return null;
+    final match = RegExp(r'/(\d+)$').firstMatch(contentRange.trim());
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
   }
 
   int _minimumExpectedAudioBytes(int? durationMs) {
