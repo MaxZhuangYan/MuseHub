@@ -28,6 +28,16 @@ class _CachedJson {
   bool isFresh(Duration ttl) => DateTime.now().difference(createdAt) < ttl;
 }
 
+class ResolvedAudioSource {
+  const ResolvedAudioSource({
+    required this.url,
+    this.source,
+  });
+
+  final String url;
+  final String? source;
+}
+
 class MusicApi {
   MusicApi({
     http.Client? client,
@@ -48,6 +58,7 @@ class MusicApi {
 
   final http.Client _client;
   final Map<String, _CachedJson> _cache = {};
+  final Map<int, Set<String>> _blockedSourcesBySongId = {};
   String _baseUrl;
   String _resolverBaseUrl = defaultResolverBaseUrl;
   DateTime? _resolverUnavailableUntil;
@@ -192,19 +203,33 @@ class MusicApi {
   }
 
   Future<String?> songUrl(Song song, {String level = 'higher'}) async {
+    final source = await resolveAudioSource(song, level: level);
+    return source?.url;
+  }
+
+  Future<ResolvedAudioSource?> resolveAudioSource(
+    Song song, {
+    String level = 'higher',
+  }) async {
     if (_usesDirectNetease) {
       final directUrl = await _resolveWithDirectNetease(song);
-      if (directUrl != null) return directUrl;
+      if (directUrl != null) {
+        return ResolvedAudioSource(url: directUrl, source: 'netease');
+      }
 
       final compatibleUrl = await _resolveWithCompatibleApi(
         song,
         level: level,
         useLegacyBase: true,
       );
-      if (compatibleUrl != null) return compatibleUrl;
+      if (compatibleUrl != null) {
+        return ResolvedAudioSource(url: compatibleUrl, source: 'compatible');
+      }
     } else {
       final compatibleUrl = await _resolveWithCompatibleApi(song, level: level);
-      if (compatibleUrl != null) return compatibleUrl;
+      if (compatibleUrl != null) {
+        return ResolvedAudioSource(url: compatibleUrl, source: 'compatible');
+      }
     }
 
     developer.log(
@@ -215,6 +240,11 @@ class MusicApi {
     if (resolvedUrl != null) return resolvedUrl;
 
     return null;
+  }
+
+  void temporarilyBlockSource(int songId, String? source) {
+    if (source == null || source.isEmpty) return;
+    (_blockedSourcesBySongId[songId] ??= <String>{}).add(source);
   }
 
   String? _readSongUrl(Map<String, dynamic> data) {
@@ -274,7 +304,7 @@ class MusicApi {
     return _validatedAudioUrl(_readSongUrl(data), durationMs: song.durationMs);
   }
 
-  Future<String?> _resolveWithAlgerFallback(Song song) async {
+  Future<ResolvedAudioSource?> _resolveWithAlgerFallback(Song song) async {
     if (_resolverBaseUrl.isEmpty) return null;
     final unavailableUntil = _resolverUnavailableUntil;
     if (unavailableUntil != null && DateTime.now().isBefore(unavailableUntil)) {
@@ -282,16 +312,19 @@ class MusicApi {
     }
 
     final uri = Uri.parse('$_resolverBaseUrl/unblock-music');
+    final blockedSources = _blockedSourcesBySongId[song.id] ?? const {};
+    final enabledSources = const [
+      'pyncmd',
+      'migu',
+      'qq',
+      'kugou',
+      'kuwo',
+      'bilibili',
+    ].where((source) => !blockedSources.contains(source)).toList();
+    if (enabledSources.isEmpty) return null;
     final payload = {
       'id': song.id,
-      'enabledSources': const [
-        'pyncmd',
-        'kugou',
-        'kuwo',
-        'migu',
-        'qq',
-        'bilibili',
-      ],
+      'enabledSources': enabledSources,
       'songData': {
         'name': song.name,
         'duration': song.durationMs,
@@ -321,7 +354,8 @@ class MusicApi {
       }
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) return null;
-      final resolvedUrl = _readResolvedUrl(decoded);
+      final resolved = _readResolvedAudioSource(decoded);
+      final resolvedUrl = resolved?.url;
       if (resolvedUrl == null) {
         developer.log(
           'Alger fallback returned no URL for ${song.id}: ${response.body}',
@@ -333,7 +367,15 @@ class MusicApi {
           name: 'MuseHub.MusicApi',
         );
       }
-      return _validatedAudioUrl(resolvedUrl, durationMs: song.durationMs);
+      final validatedUrl = await _validatedAudioUrl(
+        resolvedUrl,
+        durationMs: song.durationMs,
+      );
+      if (validatedUrl == null) return null;
+      return ResolvedAudioSource(
+        url: validatedUrl,
+        source: resolved?.source ?? 'alger',
+      );
     } on Object catch (error) {
       developer.log(
         'Alger fallback failed for ${song.id}: $error',
@@ -487,17 +529,20 @@ class MusicApi {
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Safari/537.36',
   };
 
-  String? _readResolvedUrl(Map<String, dynamic> data) {
-    final candidates = [
-      data['url'],
-      (data['data'] as Map?)?['url'],
-      ((data['data'] as Map?)?['data'] as Map?)?['url'],
-      (((data['data'] as Map?)?['data'] as Map?)?['data'] as Map?)?['url'],
-    ];
-    for (final candidate in candidates) {
-      final url = candidate?.toString();
+  ResolvedAudioSource? _readResolvedAudioSource(Map<String, dynamic> data) {
+    final payloads = [
+      data,
+      data['data'],
+      (data['data'] as Map?)?['data'],
+      ((data['data'] as Map?)?['data'] as Map?)?['data'],
+    ].whereType<Map>().toList();
+    for (final payload in payloads) {
+      final url = payload['url']?.toString();
       if (url != null && url.isNotEmpty) {
-        return url;
+        return ResolvedAudioSource(
+          url: url,
+          source: payload['source']?.toString(),
+        );
       }
     }
     return null;

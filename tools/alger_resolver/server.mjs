@@ -344,24 +344,81 @@ async function searchCandidates(id, songData) {
 
 async function resolveBySources(id, songData, enabledSources) {
   const failures = [];
+  const usable = [];
 
-  for (const source of enabledSources) {
-    try {
-      const candidate = await match(id, [source], songData);
-      const validation = await isUsableAudio(candidate, songData);
-      if (validation.ok) {
-        return { data: candidate, failures };
+  const results = await Promise.allSettled(
+    enabledSources.map(async (source) => {
+      try {
+        const candidate = await match(id, [source], songData);
+        const validation = await isUsableAudio(candidate, songData);
+        if (validation.ok) {
+          return {
+            ok: true,
+            source,
+            data: candidate,
+            score: scoreAudioCandidate(candidate, source, songData),
+          };
+        }
+        return { ok: false, source, reason: validation.reason, data: candidate };
+      } catch (error) {
+        return {
+          ok: false,
+          source,
+          reason: error instanceof Error ? error.message : `${error}`,
+        };
       }
-      failures.push({ source, reason: validation.reason, data: candidate });
-    } catch (error) {
+    }),
+  );
+
+  for (const result of results) {
+    const value = result.status === 'fulfilled'
+      ? result.value
+      : { ok: false, source: 'unknown', reason: `${result.reason}` };
+    if (value.ok) {
+      usable.push(value);
+    } else {
       failures.push({
-        source,
-        reason: error instanceof Error ? error.message : `${error}`,
+        source: value.source,
+        reason: value.reason,
+        data: value.data,
       });
     }
   }
 
-  return { data: null, failures };
+  usable.sort((a, b) => b.score - a.score);
+  if (usable.length > 0) {
+    return { data: usable[0].data, failures, candidates: usable };
+  }
+
+  return { data: null, failures, candidates: [] };
+}
+
+function scoreAudioCandidate(candidate, source, songData) {
+  let score = 0;
+  const url = `${candidate?.url || ''}`;
+  const size = Number.parseInt(`${candidate?.size || 0}`, 10);
+  const br = Number.parseInt(`${candidate?.br || 0}`, 10);
+  const minBytes = minimumExpectedAudioBytes(songData.duration);
+  const sourceScores = {
+    pyncmd: 70,
+    migu: 55,
+    qq: 50,
+    kugou: 40,
+    kuwo: 18,
+    bilibili: 10,
+  };
+
+  score += sourceScores[source] || 0;
+  if (url.startsWith('https://')) score += 18;
+  if (url.startsWith('http://')) score -= 12;
+  if (size >= minBytes * 2) score += 20;
+  else if (size >= minBytes) score += 8;
+  if (br >= 320000) score += 18;
+  else if (br >= 192000) score += 10;
+  else if (br > 0 && br < 128000) score -= 10;
+  if (/kuwo\.cn|kw-/.test(url)) score -= 10;
+  if (/music\.126\.net|jdymusic/.test(url)) score += 12;
+  return score;
 }
 
 async function resolveMusic(body) {

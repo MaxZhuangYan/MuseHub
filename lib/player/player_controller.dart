@@ -56,6 +56,7 @@ class PlayerController extends ChangeNotifier {
   Duration? _lastWatchdogPosition;
   int _stalledTicks = 0;
   bool _recoveringStall = false;
+  String? _currentAudioSource;
 
   // Ambient color extracted from current song cover art
   Color? _ambientColor;
@@ -156,14 +157,15 @@ class PlayerController extends ChangeNotifier {
     }
     if (sourceLoaded) return;
 
-    final url = await _api.songUrl(song);
+    final resolved = await _api.resolveAudioSource(song);
     if (!_isCurrentRequest(requestId, song.id)) return;
-    if (url == null) {
+    if (resolved == null) {
       throw const MusicApiException(
         'This track is unavailable from the current music source.',
       );
     }
-    await _audio.setUrl(url).timeout(const Duration(seconds: 12));
+    _currentAudioSource = resolved.source;
+    await _audio.setUrl(resolved.url).timeout(const Duration(seconds: 12));
   }
 
   Future<String?> _localPathForSong(int songId) async {
@@ -263,6 +265,7 @@ class PlayerController extends ChangeNotifier {
     if (song == null || _recoveringStall) return;
     final requestId = _playRequestId;
     final resumeAt = _position;
+    _api.temporarilyBlockSource(song.id, _currentAudioSource);
     _recoveringStall = true;
     _isLoading = true;
     notifyListeners();
