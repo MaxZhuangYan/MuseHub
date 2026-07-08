@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:palette_generator/palette_generator.dart';
 
 import '../core/models/lyric_line.dart';
 import '../core/models/song.dart';
@@ -46,6 +48,10 @@ class PlayerController extends ChangeNotifier {
   final Set<int> _unplayableIds = {};
   int _playRequestId = 0;
 
+  // Ambient color extracted from current song cover art
+  Color? _ambientColor;
+  int _colorRequestId = 0;
+
   List<Song> get queue => List.unmodifiable(_queue);
   Song? get current => _current;
   List<LyricLine> get lyrics => List.unmodifiable(_lyrics);
@@ -55,6 +61,9 @@ class PlayerController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   PlaybackRepeatMode get repeatMode => _repeatMode;
+
+  /// Dominant/vibrant color from the currently playing song's cover art.
+  Color? get ambientColor => _ambientColor;
 
   LyricLine? get activeLyric {
     if (_lyrics.isEmpty) return null;
@@ -83,6 +92,9 @@ class PlayerController extends ChangeNotifier {
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // Kick off palette extraction in parallel; result notifies independently
+    unawaited(_extractAmbientColor(song.coverUrl));
 
     try {
       await _audio.stop();
@@ -176,6 +188,26 @@ class PlayerController extends ChangeNotifier {
 
   bool _isCurrentRequest(int requestId, int songId) =>
       requestId == _playRequestId && _current?.id == songId;
+
+  Future<void> _extractAmbientColor(String coverUrl) async {
+    if (coverUrl.isEmpty) return;
+    final reqId = ++_colorRequestId;
+    try {
+      final palette = await PaletteGenerator.fromImageProvider(
+        NetworkImage(coverUrl),
+        size: const Size(60, 60),
+        maximumColorCount: 12,
+      );
+      if (reqId != _colorRequestId) return;
+      final color = palette.vibrantColor?.color ??
+          palette.lightVibrantColor?.color ??
+          palette.dominantColor?.color;
+      if (color != null) {
+        _ambientColor = color;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
 
   Future<void> next({bool automatic = false}) async {
     final song = _nextSong(

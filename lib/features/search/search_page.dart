@@ -67,9 +67,14 @@ class _SearchPageState extends State<SearchPage> {
     final scheme = Theme.of(context).colorScheme;
     final strings = AppStrings.of(context);
 
-    return ListView(
-      padding: EdgeInsets.fromLTRB(0, topPad + 8, 0, 160),
+    final bool hasResults = _songs.isNotEmpty;
+    final bool isEmpty = _songs.isEmpty && !_loading && _error == null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Page title ──
+        SizedBox(height: topPad + 8),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
           child: Text(
@@ -82,6 +87,8 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
         ),
+
+        // ── Search field ──
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
           child: TextField(
@@ -103,6 +110,7 @@ class _SearchPageState extends State<SearchPage> {
                         setState(() {
                           _suggestions = [];
                           _songs = [];
+                          _error = null;
                         });
                       },
                     )
@@ -115,9 +123,11 @@ class _SearchPageState extends State<SearchPage> {
             onSubmitted: _search,
           ),
         ),
-        if (_suggestions.isNotEmpty && _songs.isEmpty)
+
+        // ── Suggestion chips ──
+        if (_suggestions.isNotEmpty && !hasResults)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -132,8 +142,7 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                     ),
                     backgroundColor: scheme.surfaceContainerHigh,
-                    side:
-                        BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                    side: BorderSide.none,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20)),
                     onPressed: () {
@@ -144,53 +153,100 @@ class _SearchPageState extends State<SearchPage> {
               ],
             ),
           ),
+
+        // ── Loading bar ──
         if (_loading)
           LinearProgressIndicator(
             backgroundColor: Colors.transparent,
-            valueColor: AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
+            valueColor:
+                AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
             minHeight: 2,
           ),
+
+        // ── Error ──
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: Text(
               _error!,
-              style:
-                  GoogleFonts.hankenGrotesk(fontSize: 13, color: scheme.error),
+              style: GoogleFonts.hankenGrotesk(
+                  fontSize: 13, color: scheme.error),
             ),
           ),
-        if (_songs.isEmpty && !_loading)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(32, 40, 32, 0),
-            child: Column(
-              children: [
-                Icon(Icons.music_note_outlined,
-                    size: 40, color: scheme.onSurfaceVariant),
-                const SizedBox(height: 12),
-                Text(
-                  strings.searchForMusic,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.sora(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  strings.searchEmptyBody,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.hankenGrotesk(
-                    fontSize: 13,
-                    color: scheme.onSurfaceVariant,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        for (final song in _songs) SongTile(song: song, queue: _songs),
+
+        // ── Content area ──
+        Expanded(
+          child: hasResults
+              ? ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 160),
+                  itemCount: _songs.length,
+                  itemBuilder: (_, i) =>
+                      SongTile(song: _songs[i], queue: _songs),
+                )
+              : isEmpty
+                  ? _EmptyState(hasQuery: _controller.text.trim().isNotEmpty)
+                  : const SizedBox.shrink(),
+        ),
       ],
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.hasQuery});
+  final bool hasQuery;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final strings = AppStrings.of(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(40, 0, 40, 80),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: scheme.primaryContainer.withValues(alpha: 0.20),
+                ),
+              ),
+              child: Icon(
+                hasQuery
+                    ? Icons.search_off_rounded
+                    : Icons.music_note_rounded,
+                size: 30,
+                color: scheme.primaryContainer,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              hasQuery ? strings.noResults : strings.searchForMusic,
+              style: GoogleFonts.sora(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              strings.searchEmptyBody,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 13,
+                color: scheme.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

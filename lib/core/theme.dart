@@ -1,43 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// MuseHub design system — "SoundSync" cohesive dark language.
+///
+/// Principles:
+///  • One deep cool-black canvas everywhere. No warm tint.
+///  • Borderless elevated surfaces. Cards are *lighter*, never outlined.
+///  • Bold, oversized headers with tight tracking.
+///  • Coral accent used sparingly; a vibrant color is pulled from artwork.
 class MuseTheme {
+  MuseTheme._();
+
+  // ── Core palette ──────────────────────────────────────────────────
+  static const bg = Color(0xFF0D0D0F); // app canvas
+  static const surface1 = Color(0xFF161618); // resting card
+  static const surface2 = Color(0xFF1D1D20); // elevated card
+  static const surface3 = Color(0xFF26262A); // highest / inputs
+  static const textPrimary = Color(0xFFF3F2F0);
+  static const textSecondary = Color(0xFF9C968F); // warm muted gray
+  static const accent = Color(0xFFF06E43); // coral
+  static const accentSoft = Color(0xFFFF9E7D);
+
   static ThemeData light() => dark();
 
   static ThemeData dark() {
     const scheme = ColorScheme(
       brightness: Brightness.dark,
-      primary: Color(0xFFFFB59E),
-      onPrimary: Color(0xFF5E1700),
-      primaryContainer: Color(0xFFEB6F47),
-      onPrimaryContainer: Color(0xFF571500),
-      secondary: Color(0xFFC8C6C4),
-      onSecondary: Color(0xFF30312F),
-      secondaryContainer: Color(0xFF494947),
-      onSecondaryContainer: Color(0xFFB9B8B6),
+      primary: accent,
+      onPrimary: Color(0xFF2A0A00),
+      primaryContainer: accent,
+      onPrimaryContainer: Colors.white,
+      secondary: accentSoft,
+      onSecondary: Color(0xFF3A1305),
+      secondaryContainer: Color(0xFF3A2A24),
+      onSecondaryContainer: Color(0xFFFFD9C9),
       tertiary: Color(0xFF5CD8E0),
       onTertiary: Color(0xFF00373A),
       tertiaryContainer: Color(0xFF00A4AC),
       onTertiaryContainer: Color(0xFF003235),
-      error: Color(0xFFFFB4AB),
-      onError: Color(0xFF690005),
+      error: Color(0xFFFF6B6B),
+      onError: Color(0xFF3A0000),
       errorContainer: Color(0xFF93000A),
       onErrorContainer: Color(0xFFFFDAD6),
-      surface: Color(0xFF131312),
-      onSurface: Color(0xFFE5E2DF),
-      surfaceContainerLowest: Color(0xFF0E0E0D),
-      surfaceContainerLow: Color(0xFF1B1C1A),
-      surfaceContainer: Color(0xFF1F201E),
-      surfaceContainerHigh: Color(0xFF2A2A28),
-      surfaceContainerHighest: Color(0xFF353533),
-      onSurfaceVariant: Color(0xFFDEC0B7),
-      outline: Color(0xFFA68B83),
-      outlineVariant: Color(0xFF57423B),
+      surface: bg,
+      onSurface: textPrimary,
+      surfaceContainerLowest: Color(0xFF090909),
+      surfaceContainerLow: Color(0xFF131315),
+      surfaceContainer: surface1,
+      surfaceContainerHigh: surface2,
+      surfaceContainerHighest: surface3,
+      onSurfaceVariant: textSecondary,
+      outline: Color(0xFF3A3A3E),
+      outlineVariant: Color(0xFF2A2A2E),
       shadow: Colors.black,
       scrim: Colors.black,
-      inverseSurface: Color(0xFFE5E2DF),
-      onInverseSurface: Color(0xFF30302E),
-      inversePrimary: Color(0xFFA53C18),
+      inverseSurface: Color(0xFFF3F2F0),
+      onInverseSurface: Color(0xFF2A2A2A),
+      inversePrimary: accent,
     );
     return _base(scheme);
   }
@@ -45,18 +64,20 @@ class MuseTheme {
   static TextTheme _buildTextTheme() {
     return GoogleFonts.soraTextTheme().copyWith(
       bodyLarge: GoogleFonts.hankenGrotesk(
-          fontSize: 16, fontWeight: FontWeight.w400, color: const Color(0xFFE5E2DF)),
+          fontSize: 16, fontWeight: FontWeight.w400, color: textPrimary),
       bodyMedium: GoogleFonts.hankenGrotesk(
-          fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFFE5E2DF)),
+          fontSize: 14, fontWeight: FontWeight.w400, color: textPrimary),
       bodySmall: GoogleFonts.hankenGrotesk(
-          fontSize: 12, fontWeight: FontWeight.w400, color: const Color(0xFFDEC0B7)),
+          fontSize: 12, fontWeight: FontWeight.w400, color: textSecondary),
       labelLarge: GoogleFonts.hankenGrotesk(
-          fontSize: 14, fontWeight: FontWeight.w500, color: const Color(0xFFE5E2DF)),
+          fontSize: 14, fontWeight: FontWeight.w500, color: textPrimary),
       labelMedium: GoogleFonts.hankenGrotesk(
-          fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFFDEC0B7)),
+          fontSize: 13, fontWeight: FontWeight.w500, color: textSecondary),
       labelSmall: GoogleFonts.hankenGrotesk(
-          fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.5,
-          color: const Color(0xFFDEC0B7)),
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+          color: textSecondary),
     );
   }
 
@@ -68,6 +89,8 @@ class MuseTheme {
       scaffoldBackgroundColor: scheme.surface,
       useMaterial3: true,
       textTheme: textTheme,
+      splashColor: accent.withValues(alpha: 0.08),
+      highlightColor: accent.withValues(alpha: 0.04),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         foregroundColor: scheme.onSurface,
@@ -84,62 +107,62 @@ class MuseTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        height: 62,
-        indicatorColor: scheme.primary.withValues(alpha: 0.15),
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        height: 64,
+        indicatorColor: Colors.transparent,
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
             color: states.contains(WidgetState.selected)
-                ? scheme.primary
+                ? accent
                 : scheme.onSurfaceVariant,
-            size: 22,
+            size: 24,
           ),
         ),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => GoogleFonts.hankenGrotesk(
             color: states.contains(WidgetState.selected)
-                ? scheme.primary
+                ? accent
                 : scheme.onSurfaceVariant,
-            fontSize: 10,
+            fontSize: 10.5,
             fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
+            letterSpacing: 0.3,
           ),
         ),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
-      cardTheme: CardThemeData(
-        color: const Color(0xFF252523),
+      // Borderless elevated cards — the core of the look.
+      cardTheme: const CardThemeData(
+        color: surface1,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(16)),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
       ),
       sliderTheme: SliderThemeData(
-        activeTrackColor: scheme.primary,
-        inactiveTrackColor: scheme.onSurface.withValues(alpha: 0.12),
-        thumbColor: scheme.primary,
-        overlayColor: scheme.primary.withValues(alpha: 0.12),
-        trackHeight: 3,
+        activeTrackColor: scheme.onSurface,
+        inactiveTrackColor: scheme.onSurface.withValues(alpha: 0.14),
+        thumbColor: scheme.onSurface,
+        overlayColor: scheme.onSurface.withValues(alpha: 0.12),
+        trackHeight: 4,
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+        trackShape: const RoundedRectSliderTrackShape(),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF252523),
+        fillColor: surface2,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: scheme.primary, width: 1.5),
+          borderSide: const BorderSide(color: accent, width: 1.5),
         ),
         hintStyle: GoogleFonts.hankenGrotesk(
           color: scheme.onSurfaceVariant,

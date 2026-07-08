@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class SectionHeader extends StatelessWidget {
-  const SectionHeader({
-    required this.title,
-    this.action,
-    super.key,
-  });
+  const SectionHeader({required this.title, this.action, super.key});
 
   final String title;
   final Widget? action;
@@ -23,10 +19,10 @@ class SectionHeader extends StatelessWidget {
             child: Text(
               title,
               style: GoogleFonts.sora(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
+                fontSize: 25,
+                fontWeight: FontWeight.w800,
                 color: scheme.onSurface,
-                letterSpacing: -0.4,
+                letterSpacing: -0.7,
               ),
             ),
           ),

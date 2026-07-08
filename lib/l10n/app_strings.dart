@@ -101,6 +101,9 @@ class AppStrings {
   String get yourFavorites => _t('yourFavorites');
   String get favoritesEmpty => _t('favoritesEmpty');
   String get favorites => _t('favorites');
+  String get appearance => _t('appearance');
+  String get musicServices => _t('musicServices');
+  String get noResults => _t('noResults');
   String playCount(num count) {
     if (count >= 100000000) {
       return _t('hundredMillionPlays')
@@ -201,6 +204,9 @@ const _en = {
   'hundredMillionPlays': '{count}B plays',
   'tenThousandPlays': '{count}W plays',
   'plainPlays': '{count} plays',
+  'appearance': 'Appearance',
+  'musicServices': 'Music Services',
+  'noResults': 'No results found',
 };
 
 const _zhHans = {
@@ -271,6 +277,9 @@ const _zhHans = {
   'hundredMillionPlays': '{count} 亿次播放',
   'tenThousandPlays': '{count} 万次播放',
   'plainPlays': '{count} 次播放',
+  'appearance': '外观',
+  'musicServices': '音乐服务',
+  'noResults': '未找到结果',
 };
 
 const _zhHant = {
@@ -341,4 +350,7 @@ const _zhHant = {
   'hundredMillionPlays': '{count} 億次播放',
   'tenThousandPlays': '{count} 萬次播放',
   'plainPlays': '{count} 次播放',
+  'appearance': '外觀',
+  'musicServices': '音樂服務',
+  'noResults': '未找到結果',
 };

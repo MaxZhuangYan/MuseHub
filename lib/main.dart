@@ -116,15 +116,16 @@ class _GlassNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final strings = AppStrings.of(context);
+
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Container(
+        filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+        child: DecoratedBox(
           decoration: BoxDecoration(
-            color: scheme.surface.withValues(alpha: 0.72),
+            color: MuseTheme.bg.withValues(alpha: 0.80),
             border: Border(
               top: BorderSide(
-                color: scheme.onSurface.withValues(alpha: 0.06),
+                color: scheme.onSurface.withValues(alpha: 0.05),
               ),
             ),
           ),
@@ -169,89 +170,82 @@ class MiniPlayer extends StatelessWidget {
     final song = player.current;
     if (song == null) return const SizedBox.shrink();
 
-    final scheme = Theme.of(context).colorScheme;
     final strings = AppStrings.of(context);
+    final accent = player.ambientColor ?? MuseTheme.accent;
     final progress = player.duration.inMilliseconds == 0
         ? 0.0
         : (player.position.inMilliseconds / player.duration.inMilliseconds)
             .clamp(0.0, 1.0);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Material(
-        elevation: 0,
-        color: const Color(0xFF252523),
-        shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Material(
+          color: MuseTheme.surface2,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Thin ambient-tinted progress line
               LinearProgressIndicator(
                 value: progress,
-                backgroundColor: Colors.white.withValues(alpha: 0.06),
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(scheme.primaryContainer),
+                backgroundColor: Colors.white.withValues(alpha: 0.05),
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
                 minHeight: 2,
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+                padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
                 child: Row(
                   children: [
                     Expanded(
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => const FullPlayerPage(),
                           ),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
-                          child: Row(
-                            children: [
-                              CoverArt(
+                        child: Row(
+                          children: [
+                            Hero(
+                              tag: 'miniplayer_cover',
+                              child: CoverArt(
                                 url: song.coverUrl,
-                                size: 42,
-                                borderRadius: 12,
+                                size: 44,
+                                borderRadius: 10,
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      song.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.sora(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: scheme.onSurface,
-                                        letterSpacing: -0.2,
-                                      ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.sora(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: MuseTheme.textPrimary,
+                                      letterSpacing: -0.2,
                                     ),
-                                    const SizedBox(height: 1),
-                                    Text(
-                                      player.activeLyric?.text ??
-                                          song.artistText,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.hankenGrotesk(
-                                        fontSize: 11,
-                                        color: scheme.onSurfaceVariant,
-                                      ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    player.activeLyric?.text ?? song.artistText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.hankenGrotesk(
+                                      fontSize: 12,
+                                      color: MuseTheme.textSecondary,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -272,17 +266,17 @@ class MiniPlayer extends StatelessWidget {
                           player.isPlaying
                               ? Icons.pause_rounded
                               : Icons.play_arrow_rounded,
-                          color: scheme.onSurface,
-                          size: 28,
+                          color: MuseTheme.textPrimary,
+                          size: 30,
                         ),
                         onPressed: player.toggle,
                       ),
                     IconButton(
                       tooltip: strings.next,
-                      icon: Icon(
+                      icon: const Icon(
                         Icons.skip_next_rounded,
-                        color: scheme.onSurfaceVariant,
-                        size: 24,
+                        color: MuseTheme.textSecondary,
+                        size: 26,
                       ),
                       onPressed: player.next,
                     ),

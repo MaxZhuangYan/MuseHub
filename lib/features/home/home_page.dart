@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/home_snapshot.dart';
 import '../../core/models/playlist.dart';
 import '../../core/services/music_api.dart';
+import '../../core/theme.dart';
 import '../../core/widgets/cover_art.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/song_tile.dart';
@@ -54,17 +55,21 @@ class _HomePageState extends State<HomePage> {
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
-            padding: EdgeInsets.fromLTRB(0, topPad + 8, 0, 160),
+            padding: EdgeInsets.fromLTRB(0, topPad + 8, 0, 170),
             children: [
               const _HomeHeader(),
-              const SizedBox(height: 20),
-              _HeroBanners(banners: data.banners),
+              const SizedBox(height: 8),
+              if (data.banners.isNotEmpty) ...[
+                SectionHeader(title: strings.trendingNow),
+                _FeaturedBanner(banner: data.banners.first),
+              ],
               SectionHeader(
                 title: strings.madeForYou,
-                action: FilledButton.tonalIcon(
-                  onPressed: data.playlists.isEmpty
-                      ? null
-                      : () async {
+                action: data.playlists.isEmpty
+                    ? null
+                    : _SeeAllButton(
+                        label: strings.playAll,
+                        onPressed: () async {
                           final songs = await context
                               .read<MusicApi>()
                               .playlistSongs(data.playlists.first.id);
@@ -74,13 +79,11 @@ class _HomePageState extends State<HomePage> {
                                 .playSong(songs.first, queue: songs);
                           }
                         },
-                  icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                  label: Text(strings.playAll),
-                ),
+                      ),
               ),
-              _PlaylistGrid(playlists: data.playlists.take(4).toList()),
+              _PlaylistGrid(playlists: data.playlists.take(6).toList()),
               SectionHeader(title: strings.newReleases),
-              for (final song in data.newSongs.take(8))
+              for (final song in data.newSongs.take(10))
                 SongTile(song: song, queue: data.newSongs),
               const SizedBox(height: 8),
             ],
@@ -97,7 +100,7 @@ class _HomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
       child: Row(
         children: [
           Expanded(
@@ -108,17 +111,17 @@ class _HomeHeader extends StatelessWidget {
                   AppStrings.of(context).goodMusic,
                   style: GoogleFonts.hankenGrotesk(
                     fontSize: 13,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: MuseTheme.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 Text(
                   AppStrings.of(context).appName,
                   style: GoogleFonts.sora(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    letterSpacing: -0.8,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    color: MuseTheme.textPrimary,
+                    letterSpacing: -1.0,
                     height: 1.1,
                   ),
                 ),
@@ -131,181 +134,138 @@ class _HomeHeader extends StatelessWidget {
   }
 }
 
-class _HeroBanners extends StatelessWidget {
-  const _HeroBanners({required this.banners});
-
-  final List<BannerItem> banners;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final strings = AppStrings.of(context);
-    final visible = banners.take(5).toList();
-
-    if (visible.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Container(
-          height: 160,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: scheme.surfaceContainerHigh,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-          ),
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.all(20),
-          child: Text(
-            strings.appName,
-            style: GoogleFonts.sora(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: scheme.onSurface,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-          child: Text(
-            strings.trendingNow,
-            style: GoogleFonts.sora(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: scheme.onSurface,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ),
-        SizedBox(
-          height: 220,
-          child: PageView.builder(
-            controller: PageController(viewportFraction: 0.88),
-            itemCount: visible.length,
-            itemBuilder: (context, index) {
-              final banner = visible[index];
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
-                child: _BannerCard(banner: banner),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BannerCard extends StatelessWidget {
-  const _BannerCard({required this.banner});
+/// Full-width featured banner (Trending Now).
+class _FeaturedBanner extends StatelessWidget {
+  const _FeaturedBanner({required this.banner});
 
   final BannerItem banner;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final strings = AppStrings.of(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          CoverArt(url: banner.imageUrl, borderRadius: 0),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: const [0.3, 1.0],
-                colors: [
-                  Colors.transparent,
-                  const Color(0xFF131312).withValues(alpha: 0.92),
-                ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: AspectRatio(
+          aspectRatio: 16 / 10,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CoverArt(url: banner.imageUrl, borderRadius: 0),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0.35, 1.0],
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.85),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      strings.featuredPlaylist,
+                      style: GoogleFonts.hankenGrotesk(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: MuseTheme.accent,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      banner.title == 'Featured'
+                          ? strings.fallbackBannerTitle
+                          : banner.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.sora(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      strings.cinematicMix,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.hankenGrotesk(
+                        fontSize: 13,
+                        color: Colors.white.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  strings.featuredPlaylist,
-                  style: GoogleFonts.hankenGrotesk(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.primaryContainer,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  banner.title == 'Featured'
-                      ? strings.fallbackBannerTitle
-                      : banner.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.sora(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: -0.3,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  strings.cinematicMix,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.hankenGrotesk(
-                    fontSize: 12,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SeeAllButton extends StatelessWidget {
+  const _SeeAllButton({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: MuseTheme.accent,
+        textStyle: GoogleFonts.hankenGrotesk(
+            fontSize: 13, fontWeight: FontWeight.w700),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+      ),
+      icon: const Icon(Icons.play_arrow_rounded, size: 16),
+      label: Text(label),
+    );
+  }
+}
+
+/// Two-column playlist grid (Made For You).
+class _PlaylistGrid extends StatelessWidget {
+  const _PlaylistGrid({required this.playlists});
+  final List<MusicPlaylist> playlists;
+
+  @override
+  Widget build(BuildContext context) {
+    if (playlists.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 18,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.80,
+        children: [
+          for (final playlist in playlists) _PlaylistCard(playlist: playlist),
         ],
       ),
     );
   }
 }
 
-class _PlaylistGrid extends StatelessWidget {
-  const _PlaylistGrid({required this.playlists});
-
-  final List<MusicPlaylist> playlists;
-
-  @override
-  Widget build(BuildContext context) {
-    if (playlists.isEmpty) return const SizedBox.shrink();
-    return GridView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: playlists.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.76,
-      ),
-      itemBuilder: (context, index) =>
-          _PlaylistCard(playlist: playlists[index]),
-    );
-  }
-}
-
 class _PlaylistCard extends StatefulWidget {
   const _PlaylistCard({required this.playlist});
-
   final MusicPlaylist playlist;
 
   @override
@@ -314,77 +274,121 @@ class _PlaylistCard extends StatefulWidget {
 
 class _PlaylistCardState extends State<_PlaylistCard> {
   bool _loading = false;
+  bool _pressed = false;
+
+  Future<void> _play() async {
+    setState(() => _loading = true);
+    try {
+      final songs =
+          await context.read<MusicApi>().playlistSongs(widget.playlist.id);
+      if (songs.isNotEmpty && mounted) {
+        // ignore: use_build_context_synchronously
+        await context
+            .read<PlayerController>()
+            .playSong(songs.first, queue: songs);
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final strings = AppStrings.of(context);
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: _loading
-          ? null
-          : () async {
-              setState(() => _loading = true);
-              try {
-                final songs = await context
-                    .read<MusicApi>()
-                    .playlistSongs(widget.playlist.id);
-                if (songs.isNotEmpty && context.mounted) {
-                  await context
-                      .read<PlayerController>()
-                      .playSong(songs.first, queue: songs);
-                }
-              } finally {
-                if (mounted) setState(() => _loading = false);
-              }
-            },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              AspectRatio(
-                aspectRatio: 1,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CoverArt(url: widget.playlist.coverUrl, borderRadius: 0),
-                      if (_loading)
-                        const ColoredBox(
-                          color: Colors.black38,
-                          child: Center(child: CircularProgressIndicator()),
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: _loading ? null : _play,
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CoverArt(url: widget.playlist.coverUrl, borderRadius: 0),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: const [0.55, 1.0],
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.35),
+                            ],
+                          ),
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: _loading
+                          ? const SizedBox(
+                              width: 30,
+                              height: 30,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: MuseTheme.accent,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: MuseTheme.accent
+                                        .withValues(alpha: 0.4),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.play_arrow_rounded,
+                                  color: Colors.white, size: 20),
+                            ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.playlist.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.sora(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurface,
-              letterSpacing: -0.2,
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            strings.playCount(widget.playlist.playCount),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.hankenGrotesk(
-              fontSize: 11,
-              color: scheme.onSurfaceVariant,
+            const SizedBox(height: 10),
+            Text(
+              widget.playlist.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.sora(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: MuseTheme.textPrimary,
+                letterSpacing: -0.3,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Text(
+              strings.playCount(widget.playlist.playCount),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.hankenGrotesk(
+                fontSize: 12,
+                color: MuseTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

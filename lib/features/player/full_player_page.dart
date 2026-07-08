@@ -1,24 +1,70 @@
-import 'dart:ui';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
+import '../../core/theme.dart';
 import '../../core/widgets/cover_art.dart';
 import '../../l10n/app_strings.dart';
 import '../../player/player_controller.dart';
 
-class FullPlayerPage extends StatelessWidget {
+/// Full-screen "Now Playing" — dark, cohesive with the rest of the app.
+/// A vibrant color pulled from the artwork tints the artist name, the
+/// faint top glow, and the progress fill. Everything else stays black.
+class FullPlayerPage extends StatefulWidget {
   const FullPlayerPage({super.key});
+
+  @override
+  State<FullPlayerPage> createState() => _FullPlayerPageState();
+}
+
+class _FullPlayerPageState extends State<FullPlayerPage> {
+  Color _vibrant = MuseTheme.accentSoft;
+  String? _loadedUrl;
+
+  void _maybeLoadPalette(String url) {
+    if (url.isEmpty || url == _loadedUrl) return;
+    _loadedUrl = url;
+    _loadPalette(url);
+  }
+
+  Future<void> _loadPalette(String url) async {
+    try {
+      final palette = await PaletteGenerator.fromImageProvider(
+        NetworkImage(url),
+        size: const Size(100, 100),
+        maximumColorCount: 20,
+      );
+      if (!mounted || _loadedUrl != url) return;
+      final color = palette.lightVibrantColor?.color ??
+          palette.vibrantColor?.color ??
+          palette.dominantColor?.color;
+      if (color == null) return;
+      // Ensure it reads clearly on black — lift lightness if too dark.
+      final hsl = HSLColor.fromColor(color);
+      setState(() {
+        _vibrant = hsl
+            .withLightness(hsl.lightness.clamp(0.55, 0.78))
+            .withSaturation(max(hsl.saturation, 0.45))
+            .toColor();
+      });
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     final player = context.watch<PlayerController>();
     final strings = AppStrings.of(context);
     final song = player.current;
+
+    if (song != null) _maybeLoadPalette(song.coverUrl);
+
     if (song == null) {
       return Scaffold(
+        backgroundColor: MuseTheme.bg,
         appBar: AppBar(),
         body: Center(child: Text(strings.nothingPlaying)),
       );
@@ -31,64 +77,77 @@ class FullPlayerPage extends StatelessWidget {
     final remaining = player.duration - player.position;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFDBA3C1),
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFB277D0),
-              Color(0xFFD59ABA),
-              Color(0xFFFFC3AD),
-            ],
+      backgroundColor: MuseTheme.bg,
+      body: Stack(
+        children: [
+          // Faint artwork-colored glow at the very top for depth.
+          Positioned.fill(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.85),
+                  radius: 1.1,
+                  colors: [
+                    _vibrant.withValues(alpha: 0.16),
+                    MuseTheme.bg.withValues(alpha: 0.0),
+                  ],
+                  stops: const [0.0, 0.7],
+                ),
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final contentWidth =
-                  (constraints.maxWidth - 40).clamp(300.0, 430.0).toDouble();
-              final artworkSize = (contentWidth - 56)
-                  .clamp(220.0, constraints.maxHeight * 0.42)
-                  .toDouble();
 
-              return Center(
-                child: SizedBox(
-                  width: contentWidth,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
-                    children: [
-                      _PlayerTopBar(
-                        title: strings.nowPlaying,
-                        subtitle: strings.appName,
-                        onClose: () => Navigator.of(context).pop(),
-                        onMore: () => _showQueue(context),
-                      ),
-                      const SizedBox(height: 34),
-                      Center(
-                        child: SizedBox.square(
-                          dimension: artworkSize,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(28),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.24),
-                                  blurRadius: 34,
-                                  offset: const Offset(0, 18),
-                                ),
-                              ],
-                            ),
-                            child:
-                                CoverArt(url: song.coverUrl, borderRadius: 28),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 48),
-                      _GlassPanel(
+          SafeArea(
+            bottom: false,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final artworkSize =
+                    (constraints.maxWidth - 96).clamp(220.0, 360.0).toDouble();
+                return Column(
+                  children: [
+                    _TopBar(
+                      label: strings.nowPlaying,
+                      title: strings.appName,
+                      onClose: () => Navigator.of(context).pop(),
+                      onMore: () => _showQueue(context),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28),
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
+                            // ── Artwork ──
+                            Hero(
+                              tag: 'miniplayer_cover',
+                              child: Container(
+                                width: artworkSize,
+                                height: artworkSize,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _vibrant.withValues(alpha: 0.28),
+                                      blurRadius: 60,
+                                      spreadRadius: -8,
+                                      offset: const Offset(0, 24),
+                                    ),
+                                    BoxShadow(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.5),
+                                      blurRadius: 30,
+                                      offset: const Offset(0, 12),
+                                    ),
+                                  ],
+                                ),
+                                child: CoverArt(
+                                    url: song.coverUrl, borderRadius: 24),
+                              ),
+                            ),
+
+                            // ── Title + artist + fav ──
                             Row(
                               children: [
                                 Expanded(
@@ -101,175 +160,179 @@ class FullPlayerPage extends StatelessWidget {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: GoogleFonts.sora(
-                                          fontSize: 25,
+                                          fontSize: 28,
                                           fontWeight: FontWeight.w800,
-                                          color: Colors.white,
+                                          color: MuseTheme.textPrimary,
                                           height: 1.1,
+                                          letterSpacing: -0.8,
                                         ),
                                       ),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                        song.artistText,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      const SizedBox(height: 6),
+                                      AnimatedDefaultTextStyle(
+                                        duration:
+                                            const Duration(milliseconds: 500),
                                         style: GoogleFonts.hankenGrotesk(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF61F1F2),
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w600,
+                                          color: _vibrant,
+                                        ),
+                                        child: Text(
+                                          song.artistText,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                IconButton(
-                                  tooltip: appState.isFavorite(song)
-                                      ? strings.removeFavorite
-                                      : strings.favorite,
-                                  icon: Icon(
-                                    appState.isFavorite(song)
-                                        ? Icons.favorite_rounded
-                                        : Icons.favorite_border_rounded,
+                                const SizedBox(width: 8),
+                                _FavButton(appState: appState, song: song),
+                              ],
+                            ),
+
+                            // ── Progress ──
+                            Column(
+                              children: [
+                                SliderTheme(
+                                  data: SliderTheme.of(context).copyWith(
+                                    activeTrackColor: MuseTheme.textPrimary,
+                                    inactiveTrackColor: MuseTheme.textPrimary
+                                        .withValues(alpha: 0.16),
+                                    thumbColor: MuseTheme.textPrimary,
+                                    overlayColor: MuseTheme.textPrimary
+                                        .withValues(alpha: 0.12),
+                                    trackHeight: 4,
+                                    thumbShape: const RoundSliderThumbShape(
+                                        enabledThumbRadius: 5),
+                                    overlayShape: const RoundSliderOverlayShape(
+                                        overlayRadius: 14),
                                   ),
-                                  color: Colors.white,
-                                  iconSize: 30,
-                                  onPressed: () =>
-                                      appState.toggleFavorite(song),
+                                  child: Slider(
+                                    value: progress.clamp(0.0, 1.0).toDouble(),
+                                    onChanged: (v) => player.seek(
+                                      Duration(
+                                        milliseconds:
+                                            (player.duration.inMilliseconds * v)
+                                                .round(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 4),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      _TimeLabel(_format(player.position)),
+                                      _TimeLabel(
+                                        '-${_format(remaining.isNegative ? Duration.zero : remaining)}',
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 22),
-                            SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                activeTrackColor: Colors.white,
-                                inactiveTrackColor:
-                                    Colors.white.withValues(alpha: 0.34),
-                                thumbColor: Colors.white,
-                                overlayColor:
-                                    Colors.white.withValues(alpha: 0.12),
-                                trackHeight: 5,
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 5,
-                                ),
-                              ),
-                              child: Slider(
-                                value: progress.clamp(0.0, 1.0).toDouble(),
-                                onChanged: (value) => player.seek(
-                                  Duration(
-                                    milliseconds:
-                                        (player.duration.inMilliseconds * value)
-                                            .round(),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _TimeLabel(_format(player.position)),
-                                  _TimeLabel(
-                                      '-${_format(remaining.isNegative ? Duration.zero : remaining)}'),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-                            _PlayerControls(
+
+                            // ── Controls ──
+                            _Controls(
                               player: player,
                               onShowQueue: () => _showQueue(context),
                             ),
-                            const SizedBox(height: 18),
-                            _LyricsButton(
-                              label: strings.lyrics,
-                              onPressed: player.lyrics.isEmpty
-                                  ? null
-                                  : () => _showLyrics(context),
+
+                            // ── Bottom row: lyrics pill + queue ──
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _LyricsPill(
+                                  label: strings.lyrics,
+                                  onPressed: player.lyrics.isEmpty
+                                      ? null
+                                      : () => _showLyrics(context),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      _LyricsPreview(
-                        player: player,
-                        fallback: strings.lyricsUnavailable,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  static String _format(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
+  static String _format(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   void _showQueue(BuildContext context) {
     final player = context.read<PlayerController>();
-    final scheme = Theme.of(context).colorScheme;
     final strings = AppStrings.of(context);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: const Color(0xFF1F201E),
+      backgroundColor: MuseTheme.surface1,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
-        return ListView(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Text(
-                strings.queue,
-                style: GoogleFonts.sora(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface,
-                  letterSpacing: -0.3,
-                ),
+      builder: (context) => ListView(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text(
+              strings.queue,
+              style: GoogleFonts.sora(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: MuseTheme.textPrimary,
+                letterSpacing: -0.4,
               ),
             ),
-            for (final song in player.queue)
-              ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-                title: Text(
-                  song.name,
-                  style: GoogleFonts.sora(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: song.id == player.current?.id
-                        ? scheme.primaryContainer
-                        : scheme.onSurface,
-                  ),
+          ),
+          for (final s in player.queue)
+            ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
+              title: Text(
+                s.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.hankenGrotesk(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: s.id == player.current?.id
+                      ? _vibrant
+                      : MuseTheme.textPrimary,
                 ),
-                subtitle: Text(
-                  song.artistText,
-                  style: GoogleFonts.hankenGrotesk(
-                    fontSize: 12,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                leading: song.id == player.current?.id
-                    ? Icon(Icons.graphic_eq, color: scheme.primaryContainer)
-                    : null,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  player.playSong(song);
-                },
               ),
-          ],
-        );
-      },
+              subtitle: Text(
+                s.artistText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.hankenGrotesk(
+                    fontSize: 12, color: MuseTheme.textSecondary),
+              ),
+              leading: s.id == player.current?.id
+                  ? Icon(Icons.graphic_eq_rounded, color: _vibrant)
+                  : const Icon(Icons.drag_indicator_rounded,
+                      color: MuseTheme.textSecondary),
+              onTap: () {
+                Navigator.of(context).pop();
+                player.playSong(s);
+              },
+            ),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 
@@ -279,47 +342,45 @@ class FullPlayerPage extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: const Color(0xFF2B2130),
+      backgroundColor: MuseTheme.surface1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         final lyrics = player.lyrics;
         return ListView(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
           children: [
             Text(
               strings.lyrics,
               style: GoogleFonts.sora(
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: MuseTheme.textPrimary,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             if (lyrics.isEmpty)
               Text(
                 strings.lyricsUnavailable,
                 style: GoogleFonts.hankenGrotesk(
-                  fontSize: 14,
-                  color: Colors.white.withValues(alpha: 0.72),
-                ),
+                    fontSize: 14, color: MuseTheme.textSecondary),
               )
             else
               for (final line in lyrics)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
                   child: Text(
                     line.text,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.hankenGrotesk(
-                      fontSize: 15,
+                      fontSize: 16,
                       fontWeight: line == player.activeLyric
                           ? FontWeight.w800
                           : FontWeight.w500,
                       color: line == player.activeLyric
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.58),
+                          ? _vibrant
+                          : MuseTheme.textPrimary.withValues(alpha: 0.42),
                     ),
                   ),
                 ),
@@ -330,206 +391,121 @@ class FullPlayerPage extends StatelessWidget {
   }
 }
 
-class _PlayerTopBar extends StatelessWidget {
-  const _PlayerTopBar({
+// ── Top bar ──────────────────────────────────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.label,
     required this.title,
-    required this.subtitle,
     required this.onClose,
     required this.onMore,
   });
-
-  final String title;
-  final String subtitle;
-  final VoidCallback onClose;
-  final VoidCallback onMore;
+  final String label, title;
+  final VoidCallback onClose, onMore;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 58,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _TopCircleButton(
-              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-              icon: Icons.keyboard_arrow_down_rounded,
-              onPressed: onClose,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: SizedBox(
+        height: 52,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                iconSize: 30,
+                color: MuseTheme.textPrimary,
+                onPressed: onClose,
+              ),
             ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.hankenGrotesk(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white.withValues(alpha: 0.72),
-                  letterSpacing: 1.7,
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: GoogleFonts.hankenGrotesk(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: MuseTheme.textSecondary,
+                    letterSpacing: 1.6,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.sora(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: _TopCircleButton(
-              tooltip: AppStrings.of(context).queue,
-              icon: Icons.more_vert_rounded,
-              onPressed: onMore,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TopCircleButton extends StatelessWidget {
-  const _TopCircleButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipOval(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: IconButton(
-          tooltip: tooltip,
-          icon: Icon(icon),
-          color: Colors.white,
-          iconSize: 27,
-          style: IconButton.styleFrom(
-            fixedSize: const Size(58, 58),
-            backgroundColor: Colors.white.withValues(alpha: 0.16),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.22)),
-          ),
-          onPressed: onPressed,
-        ),
-      ),
-    );
-  }
-}
-
-class _GlassPanel extends StatelessWidget {
-  const _GlassPanel({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(38),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withValues(alpha: 0.34),
-                Colors.white.withValues(alpha: 0.18),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(38),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.34)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.13),
-                blurRadius: 36,
-                offset: const Offset(0, 22),
-              ),
-            ],
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
-class _PlayPauseButton extends StatelessWidget {
-  const _PlayPauseButton({
-    required this.player,
-    required this.size,
-  });
-
-  final PlayerController player;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipOval(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.28),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  blurRadius: 28,
-                  offset: const Offset(0, 10),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  style: GoogleFonts.sora(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: MuseTheme.textPrimary,
+                  ),
                 ),
               ],
             ),
-            child: IconButton(
-              tooltip: player.isPlaying
-                  ? AppStrings.of(context).pause
-                  : AppStrings.of(context).play,
-              icon: Icon(
-                player.error != null
-                    ? Icons.replay_rounded
-                    : player.isPlaying
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: AppStrings.of(context).queue,
+                icon: const Icon(Icons.more_horiz_rounded),
+                iconSize: 26,
+                color: MuseTheme.textPrimary,
+                onPressed: onMore,
               ),
-              color: Colors.white,
-              iconSize: size * 0.49,
-              onPressed:
-                  player.isLoading && !player.isPlaying ? null : player.toggle,
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _PlayerControls extends StatelessWidget {
-  const _PlayerControls({
-    required this.player,
-    required this.onShowQueue,
-  });
+// ── Favorite ──────────────────────────────────────────────────────────────────
 
+class _FavButton extends StatelessWidget {
+  const _FavButton({required this.appState, required this.song});
+  final AppState appState;
+  final dynamic song;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final isFav = appState.isFavorite(song);
+    return IconButton(
+      tooltip: isFav ? strings.removeFavorite : strings.favorite,
+      icon: Icon(
+        isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        color: isFav ? MuseTheme.accent : MuseTheme.textSecondary,
+        size: 28,
+      ),
+      onPressed: () => appState.toggleFavorite(song),
+    );
+  }
+}
+
+class _TimeLabel extends StatelessWidget {
+  const _TimeLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: GoogleFonts.hankenGrotesk(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: MuseTheme.textSecondary,
+      ),
+    );
+  }
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+
+class _Controls extends StatelessWidget {
+  const _Controls({required this.player, required this.onShowQueue});
   final PlayerController player;
   final VoidCallback onShowQueue;
 
@@ -538,37 +514,41 @@ class _PlayerControls extends StatelessWidget {
     final strings = AppStrings.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 330;
-        final sideButtonSize = compact ? 40.0 : 46.0;
-        final playButtonSize = compact ? 72.0 : 86.0;
+        final compact = constraints.maxWidth < 300;
+        final edgeSize = compact ? 38.0 : 44.0;
+        final skipSize = compact ? 40.0 : 48.0;
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _ControlButton(
+            _Ctrl(
               tooltip: strings.repeat,
-              icon: Icon(_repeatIcon(player.repeatMode)),
+              icon: _repeatIcon(player.repeatMode),
               onPressed: player.cycleRepeatMode,
               isActive: player.repeatMode != PlaybackRepeatMode.off,
-              size: sideButtonSize,
+              size: edgeSize,
             ),
-            _ControlButton(
+            _Ctrl(
               tooltip: strings.previous,
-              icon: const Icon(Icons.skip_previous_rounded),
+              icon: Icons.skip_previous_rounded,
               onPressed: player.previous,
-              size: sideButtonSize,
+              size: skipSize,
             ),
-            _PlayPauseButton(player: player, size: playButtonSize),
-            _ControlButton(
+            _PlayButton(
+              player: player,
+              size: compact ? 64 : 76,
+              iconSize: compact ? 32 : 38,
+            ),
+            _Ctrl(
               tooltip: strings.next,
-              icon: const Icon(Icons.skip_next_rounded),
+              icon: Icons.skip_next_rounded,
               onPressed: player.next,
-              size: sideButtonSize,
+              size: skipSize,
             ),
-            _ControlButton(
+            _Ctrl(
               tooltip: strings.queue,
-              icon: const Icon(Icons.queue_music_rounded),
+              icon: Icons.queue_music_rounded,
               onPressed: onShowQueue,
-              size: sideButtonSize,
+              size: edgeSize,
             ),
           ],
         );
@@ -576,131 +556,136 @@ class _PlayerControls extends StatelessWidget {
     );
   }
 
-  static IconData _repeatIcon(PlaybackRepeatMode mode) {
-    return switch (mode) {
-      PlaybackRepeatMode.off => Icons.repeat_rounded,
-      PlaybackRepeatMode.one => Icons.repeat_one_rounded,
-      PlaybackRepeatMode.all => Icons.repeat_on_rounded,
-    };
+  static IconData _repeatIcon(PlaybackRepeatMode mode) => switch (mode) {
+        PlaybackRepeatMode.off => Icons.repeat_rounded,
+        PlaybackRepeatMode.one => Icons.repeat_one_rounded,
+        PlaybackRepeatMode.all => Icons.repeat_rounded,
+      };
+}
+
+class _PlayButton extends StatelessWidget {
+  const _PlayButton({
+    required this.player,
+    required this.size,
+    required this.iconSize,
+  });
+
+  final PlayerController player;
+  final double size;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = player.error != null
+        ? Icons.replay_rounded
+        : player.isPlaying
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: MuseTheme.accent,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: MuseTheme.accent.withValues(alpha: 0.5),
+            blurRadius: 28,
+            spreadRadius: -2,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: player.isLoading && !player.isPlaying
+          ? Padding(
+              padding: EdgeInsets.all(size * 0.29),
+              child: const CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white,
+              ),
+            )
+          : InkResponse(
+              radius: size * 0.52,
+              onTap: player.toggle,
+              child: Icon(icon, color: Colors.white, size: iconSize),
+            ),
+    );
   }
 }
 
-class _ControlButton extends StatelessWidget {
-  const _ControlButton({
+class _Ctrl extends StatelessWidget {
+  const _Ctrl({
     required this.tooltip,
     required this.icon,
     required this.onPressed,
     required this.size,
     this.isActive = false,
   });
-
   final String tooltip;
-  final Widget icon;
+  final IconData icon;
   final VoidCallback onPressed;
   final double size;
   final bool isActive;
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        isActive ? Colors.white : Colors.white.withValues(alpha: 0.78);
+    final color = isActive ? MuseTheme.accent : MuseTheme.textPrimary;
     return Tooltip(
       message: tooltip,
       child: SizedBox.square(
-        dimension: size,
-        child: IconTheme(
-          data: IconThemeData(
-            color: color,
-            size: size * 0.61,
-          ),
-          child: InkResponse(
-            radius: size * 0.52,
-            onTap: onPressed,
-            child: Center(child: icon),
-          ),
+        dimension: size + 8,
+        child: InkResponse(
+          radius: size * 0.55,
+          onTap: onPressed,
+          child: Icon(icon, color: color, size: size * 0.72),
         ),
       ),
     );
   }
 }
 
-class _TimeLabel extends StatelessWidget {
-  const _TimeLabel(this.text);
+// ── Lyrics pill ───────────────────────────────────────────────────────────────
 
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: GoogleFonts.hankenGrotesk(
-        fontSize: 13,
-        fontWeight: FontWeight.w800,
-        color: Colors.white.withValues(alpha: 0.9),
-      ),
-    );
-  }
-}
-
-class _LyricsButton extends StatelessWidget {
-  const _LyricsButton({
-    required this.label,
-    required this.onPressed,
-  });
-
+class _LyricsPill extends StatelessWidget {
+  const _LyricsPill({required this.label, required this.onPressed});
   final String label;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 54,
-      width: 170,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-        label: Text(
-          label.toUpperCase(),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
-          disabledForegroundColor: Colors.white.withValues(alpha: 0.42),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.42)),
-          shape: const StadiumBorder(),
-          textStyle: GoogleFonts.hankenGrotesk(
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.4,
+    final enabled = onPressed != null;
+    return Material(
+      color: MuseTheme.surface2,
+      shape: const StadiumBorder(),
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const StadiumBorder(),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lyrics_rounded,
+                  size: 16,
+                  color: enabled
+                      ? MuseTheme.textPrimary
+                      : MuseTheme.textSecondary.withValues(alpha: 0.5)),
+              const SizedBox(width: 8),
+              Text(
+                label.toUpperCase(),
+                style: GoogleFonts.hankenGrotesk(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                  color: enabled
+                      ? MuseTheme.textPrimary
+                      : MuseTheme.textSecondary.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _LyricsPreview extends StatelessWidget {
-  const _LyricsPreview({
-    required this.player,
-    required this.fallback,
-  });
-
-  final PlayerController player;
-  final String fallback;
-
-  @override
-  Widget build(BuildContext context) {
-    final active = player.activeLyric;
-    return Text(
-      active?.text ?? fallback,
-      textAlign: TextAlign.center,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: GoogleFonts.hankenGrotesk(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: Colors.white.withValues(alpha: active == null ? 0.54 : 0.82),
       ),
     );
   }
