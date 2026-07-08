@@ -17,4 +17,10 @@ class DownloadService {
   }
 
   Future<void> deleteDownload(int songId) async {}
+
+  Future<void> openDownloadDirectory() {
+    throw const MusicApiException(
+      'Opening the download folder is not available on this platform.',
+    );
+  }
 }

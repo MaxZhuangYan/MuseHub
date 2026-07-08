@@ -110,6 +110,9 @@ class AppStrings {
   String get downloaded => _t('downloaded');
   String get deleteDownload => _t('deleteDownload');
   String get downloadFailed => _t('downloadFailed');
+  String get openDownloadFolder => _t('openDownloadFolder');
+  String get openDownloadFolderUnavailable =>
+      _t('openDownloadFolderUnavailable');
   String get appearance => _t('appearance');
   String get musicServices => _t('musicServices');
   String get noResults => _t('noResults');
@@ -218,6 +221,9 @@ const _en = {
   'downloaded': 'Downloaded',
   'deleteDownload': 'Delete download',
   'downloadFailed': 'Download failed',
+  'openDownloadFolder': 'Open download folder',
+  'openDownloadFolderUnavailable':
+      'Opening the download folder is not available on this platform.',
   'hundredMillionPlays': '{count}B plays',
   'tenThousandPlays': '{count}W plays',
   'plainPlays': '{count} plays',
@@ -299,6 +305,8 @@ const _zhHans = {
   'downloaded': '已下载',
   'deleteDownload': '删除下载',
   'downloadFailed': '下载失败',
+  'openDownloadFolder': '打开下载目录',
+  'openDownloadFolderUnavailable': '当前平台不支持直接打开下载目录。',
   'hundredMillionPlays': '{count} 亿次播放',
   'tenThousandPlays': '{count} 万次播放',
   'plainPlays': '{count} 次播放',
@@ -380,6 +388,8 @@ const _zhHant = {
   'downloaded': '已下載',
   'deleteDownload': '刪除下載',
   'downloadFailed': '下載失敗',
+  'openDownloadFolder': '開啟下載目錄',
+  'openDownloadFolderUnavailable': '目前平台不支援直接開啟下載目錄。',
   'hundredMillionPlays': '{count} 億次播放',
   'tenThousandPlays': '{count} 萬次播放',
   'plainPlays': '{count} 次播放',

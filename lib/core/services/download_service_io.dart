@@ -106,6 +106,26 @@ class DownloadService {
     }
   }
 
+  Future<void> openDownloadDirectory() async {
+    final dir = await _downloadDir();
+    await dir.create(recursive: true);
+    if (Platform.isMacOS) {
+      await Process.run('open', [dir.path]);
+      return;
+    }
+    if (Platform.isWindows) {
+      await Process.run('explorer', [dir.path]);
+      return;
+    }
+    if (Platform.isLinux) {
+      await Process.run('xdg-open', [dir.path]);
+      return;
+    }
+    throw const MusicApiException(
+      'Opening the download folder is not available on this platform.',
+    );
+  }
+
   Future<Song> _hydrateSong(Song song, MusicApi api) async {
     if (song.coverUrl.isNotEmpty && song.artists.isNotEmpty) return song;
     try {

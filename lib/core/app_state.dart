@@ -233,6 +233,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> openDownloadDirectory() {
+    return downloadService.openDownloadDirectory();
+  }
+
   Future<void> _restoreSession() async {
     final token = _sessionToken;
     if (token == null || token.isEmpty) {

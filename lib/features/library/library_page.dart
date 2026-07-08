@@ -57,6 +57,7 @@ class _LibraryPageState extends State<LibraryPage> {
               _SectionHeader(
                 title: strings.downloads,
                 subtitle: strings.downloadedSongs(downloads.length),
+                trailing: _OpenDownloadFolderButton(appState: appState),
               ),
               for (final item in downloads)
                 SongTile(
@@ -114,10 +115,12 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
     required this.subtitle,
+    this.trailing,
   });
 
   final String title;
   final String subtitle;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -127,13 +130,20 @@ class _SectionHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: GoogleFonts.sora(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: scheme.onSurface,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.sora(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
           ),
           const SizedBox(height: 3),
           Text(
@@ -150,6 +160,30 @@ class _SectionHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _OpenDownloadFolderButton extends StatelessWidget {
+  const _OpenDownloadFolderButton({required this.appState});
+  final AppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    return IconButton(
+      tooltip: strings.openDownloadFolder,
+      icon: const Icon(Icons.folder_open_rounded, size: 20),
+      onPressed: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        try {
+          await appState.openDownloadDirectory();
+        } on Object {
+          messenger.showSnackBar(
+            SnackBar(content: Text(strings.openDownloadFolderUnavailable)),
+          );
+        }
+      },
     );
   }
 }
