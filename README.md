@@ -28,8 +28,8 @@ Notes:
 
 ## Server Setup
 
-The app can use a MuseHub Server for account and sync. For the current test
-deployment, set this in app settings:
+The app can use a MuseHub Server for account and sync. In app settings, point
+the client at your own server:
 
 ```txt
 MuseHub Server: https://your-musehub-server.example
