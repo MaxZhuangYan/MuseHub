@@ -1,4 +1,4 @@
-ddec7b288c39352ace4ef035245578e16efb50241c6d7ad099a6bf0bcfeccb88  release/v0.1.0/MuseHub-v0.1.0-android-arm64-release.apk
-d7a2168bcf7734cfe8a7481f20d30d5b7675a92590de8b4b384eed39a77e338b  release/v0.1.0/MuseHub-v0.1.0-ios-unsigned.zip
-4fc716c6934cf775d61aedec3956c42a776075142cc8bf81da69d50b0ef025c8  release/v0.1.0/MuseHub-v0.1.0-macos-arm64.zip
-05fadebd1f1be92b4ed6823e2d5165085638314de4a92b1b7aa2afa4cc045c29  release/v0.1.0/MuseHub-v0.1.0-web.zip
+47acfd06964493408aedc681864324075ff9e8ba3022e3bbba0ce4cd5981fc1f  release/v0.1.0/MuseHub-v0.1.0-android-arm64-release.apk
+9fa912680fa8a6c978932b5a26213ca7ce0c5fa30dbb44984e87073e8b416b68  release/v0.1.0/MuseHub-v0.1.0-ios-unsigned.zip
+3eac2b86a22c846cc2c62faef21561a2ebf6fc84a52777d835fff3425cf31f04  release/v0.1.0/MuseHub-v0.1.0-macos-arm64.zip
+312619e64fac197219c39ef5a68e3d984a7d37bce8e6577750624b7d8456007b  release/v0.1.0/MuseHub-v0.1.0-web.zip
