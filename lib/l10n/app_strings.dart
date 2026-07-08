@@ -73,6 +73,9 @@ class AppStrings {
   String get resolverUrl => _t('resolverUrl');
   String get resolverHelper => _t('resolverHelper');
   String get testConnection => _t('testConnection');
+  String get resolverDiscoverOnWifi => _t('resolverDiscoverOnWifi');
+  String get resolverDiscovering => _t('resolverDiscovering');
+  String get resolverDiscoverNotFound => _t('resolverDiscoverNotFound');
   String get resolverTestOk => _t('resolverTestOk');
   String resolverTestOkWithSources(String sources) =>
       _t('resolverTestOkWithSources').replaceAll('{sources}', sources);
@@ -194,10 +197,16 @@ const _en = {
   'apiBaseUrl': 'API base URL',
   'resolverUrl': 'Alger fallback resolver URL',
   'resolverHelper':
-      'Optional. macOS: http://127.0.0.1:30489 · Android emulator: '
-          'http://10.0.2.2:30489 · Physical phone: your Mac\'s LAN IP, e.g. '
-          'http://192.168.1.x:30489 — 127.0.0.1 will not work from a real device.',
+      'Optional. Try Auto-discover first. Manual fallback — macOS: '
+          'http://127.0.0.1:30489 · Android emulator: http://10.0.2.2:30489 · '
+          'Physical phone: your Mac\'s LAN IP, e.g. http://192.168.1.x:30489 — '
+          '127.0.0.1 will not work from a real device.',
   'testConnection': 'Test',
+  'resolverDiscoverOnWifi': 'Auto-discover on Wi-Fi',
+  'resolverDiscovering': 'Looking on this Wi-Fi network…',
+  'resolverDiscoverNotFound':
+      "Couldn't find one on this Wi-Fi network. Make sure your Mac and "
+          'phone are on the same network, or enter the address manually.',
   'resolverTestOk': 'Connected',
   'resolverTestOkWithSources': 'Connected — sources: {sources}',
   'resolverTestEmpty': 'Enter a resolver URL first.',
@@ -292,10 +301,13 @@ const _zhHans = {
   'apiBaseUrl': 'API 服务地址',
   'resolverUrl': 'Alger 备用解析服务地址',
   'resolverHelper':
-      '可选。macOS：http://127.0.0.1:30489 · Android模拟器：'
-          'http://10.0.2.2:30489 · 真机：填你 Mac 的局域网IP，例如 '
+      '可选。优先试试"自动发现"。手动填写备用 —— macOS：http://127.0.0.1:30489 · '
+          'Android模拟器：http://10.0.2.2:30489 · 真机：填你 Mac 的局域网IP，例如 '
           'http://192.168.1.x:30489 —— 真机上填 127.0.0.1 是连不上的。',
   'testConnection': '测试',
+  'resolverDiscoverOnWifi': '在 Wi-Fi 中自动发现',
+  'resolverDiscovering': '正在这个 Wi-Fi 网络里查找…',
+  'resolverDiscoverNotFound': '在当前 Wi-Fi 网络没找到。确认手机和 Mac 连的是同一个网络，或者手动填地址。',
   'resolverTestOk': '连接成功',
   'resolverTestOkWithSources': '连接成功 — 可用源：{sources}',
   'resolverTestEmpty': '请先填写解析器地址。',
@@ -387,10 +399,13 @@ const _zhHant = {
   'apiBaseUrl': 'API 服務位址',
   'resolverUrl': 'Alger 備用解析服務位址',
   'resolverHelper':
-      '可選。macOS：http://127.0.0.1:30489 · Android模擬器：'
-          'http://10.0.2.2:30489 · 真機：填你 Mac 的區網IP，例如 '
+      '可選。優先試試「自動發現」。手動填寫備用 —— macOS：http://127.0.0.1:30489 · '
+          'Android模擬器：http://10.0.2.2:30489 · 真機：填你 Mac 的區網IP，例如 '
           'http://192.168.1.x:30489 —— 真機上填 127.0.0.1 是連不上的。',
   'testConnection': '測試',
+  'resolverDiscoverOnWifi': '在 Wi-Fi 中自動發現',
+  'resolverDiscovering': '正在這個 Wi-Fi 網路裡尋找…',
+  'resolverDiscoverNotFound': '在目前 Wi-Fi 網路沒找到。確認手機和 Mac 連的是同一個網路，或者手動填位址。',
   'resolverTestOk': '連接成功',
   'resolverTestOkWithSources': '連接成功 — 可用源：{sources}',
   'resolverTestEmpty': '請先填寫解析器位址。',

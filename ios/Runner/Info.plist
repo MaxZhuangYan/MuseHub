@@ -31,6 +31,12 @@
 		<key>NSAllowsArbitraryLoadsForMedia</key>
 		<true/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>MuseHub looks for a MuseHub Alger Resolver running on your Wi-Fi network so it can play VIP/region-locked tracks without you typing an IP address.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_musehub-resolver._tcp</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

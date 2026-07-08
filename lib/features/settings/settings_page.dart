@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:multicast_dns/multicast_dns.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
@@ -603,6 +604,86 @@ class _ResolverField extends StatefulWidget {
 class _ResolverFieldState extends State<_ResolverField> {
   _ResolverTestState _state = _ResolverTestState.idle;
   String? _resultMessage;
+  bool _discovering = false;
+
+  // Matches the service type tools/alger_resolver advertises via
+  // bonjour-service. Finding it means "there's a resolver reachable on
+  // this Wi-Fi network right now" without the user ever typing an IP.
+  static const _serviceType = '_musehub-resolver._tcp.local';
+
+  Future<void> _discoverResolver() async {
+    final strings = AppStrings.of(context);
+    setState(() {
+      _discovering = true;
+      _resultMessage = null;
+    });
+
+    final client = MDnsClient();
+    try {
+      await client.start();
+      final ptrRecords = await client
+          .lookup<PtrResourceRecord>(
+            ResourceRecordQuery.serverPointer(_serviceType),
+          )
+          .toList()
+          .timeout(
+            const Duration(seconds: 4),
+            onTimeout: () => const <PtrResourceRecord>[],
+          );
+
+      String? foundUrl;
+      for (final ptr in ptrRecords) {
+        final srvRecords = await client
+            .lookup<SrvResourceRecord>(
+              ResourceRecordQuery.service(ptr.domainName),
+            )
+            .toList()
+            .timeout(
+              const Duration(seconds: 2),
+              onTimeout: () => const <SrvResourceRecord>[],
+            );
+        for (final srv in srvRecords) {
+          final ipRecords = await client
+              .lookup<IPAddressResourceRecord>(
+                ResourceRecordQuery.addressIPv4(srv.target),
+              )
+              .toList()
+              .timeout(
+                const Duration(seconds: 2),
+                onTimeout: () => const <IPAddressResourceRecord>[],
+              );
+          if (ipRecords.isNotEmpty) {
+            foundUrl = 'http://${ipRecords.first.address.address}:${srv.port}';
+            break;
+          }
+        }
+        if (foundUrl != null) break;
+      }
+
+      if (!mounted) return;
+      if (foundUrl == null) {
+        setState(() {
+          _discovering = false;
+          _state = _ResolverTestState.failure;
+          _resultMessage = strings.resolverDiscoverNotFound;
+        });
+        return;
+      }
+
+      widget.controller.text = foundUrl;
+      setState(() => _discovering = false);
+      await _testConnection();
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _discovering = false;
+        _state = _ResolverTestState.failure;
+        _resultMessage = strings.resolverDiscoverNotFound;
+      });
+    } finally {
+      client.stop();
+    }
+  }
 
   Future<void> _testConnection() async {
     final strings = AppStrings.of(context);
@@ -687,6 +768,40 @@ class _ResolverFieldState extends State<_ResolverField> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _discovering ? null : _discoverResolver,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: scheme.primaryContainer,
+                side: BorderSide(
+                    color: scheme.primaryContainer.withValues(alpha: 0.4)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: _discovering
+                  ? SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: scheme.primaryContainer,
+                      ),
+                    )
+                  : const Icon(Icons.wifi_find_rounded, size: 16),
+              label: Text(
+                _discovering
+                    ? strings.resolverDiscovering
+                    : strings.resolverDiscoverOnWifi,
+                style: GoogleFonts.hankenGrotesk(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           Row(

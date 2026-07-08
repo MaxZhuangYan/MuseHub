@@ -1,6 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import match from '@unblockneteasemusic/server';
+import { Bonjour } from 'bonjour-service';
 
 const DEFAULT_PORT = 30489;
 const DEFAULT_HOST = '0.0.0.0';
@@ -503,3 +504,25 @@ const server = http.createServer(async (request, response) => {
 server.listen(port, host, () => {
   console.log(`MuseHub Alger resolver listening at http://${host}:${port}`);
 });
+
+// Advertise on the LAN via mDNS/Bonjour so the phone app can find this
+// resolver automatically instead of the user having to look up and type
+// their Mac's local IP address (the single most common setup mistake —
+// 127.0.0.1 only ever means "this same device").
+if (process.env.MDNS_DISABLED !== 'true') {
+  const bonjour = new Bonjour();
+  const advertisement = bonjour.publish({
+    name: 'MuseHub Alger Resolver',
+    type: 'musehub-resolver',
+    port,
+  });
+  advertisement.start();
+  console.log('Advertising via mDNS as _musehub-resolver._tcp.local');
+
+  const shutdown = () => {
+    advertisement.stop(() => bonjour.destroy());
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
