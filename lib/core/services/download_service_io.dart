@@ -19,30 +19,34 @@ class DownloadService {
   final http.Client _client;
 
   Future<List<DownloadedSong>> listDownloads() async {
-    final dir = await _downloadDir();
-    if (!await dir.exists()) return const [];
-    final results = <DownloadedSong>[];
-    await for (final entity in dir.list()) {
-      if (entity is! File || !entity.path.endsWith('.json')) continue;
-      try {
-        final decoded = jsonDecode(await entity.readAsString());
-        if (decoded is! Map<String, dynamic>) continue;
-        final item = DownloadedSong.fromJson(decoded);
-        if (item.song.id != 0 && await File(item.audioPath).exists()) {
-          results.add(item);
+    try {
+      final dir = await _downloadDir();
+      if (!await dir.exists()) return const [];
+      final results = <DownloadedSong>[];
+      await for (final entity in dir.list()) {
+        if (entity is! File || !entity.path.endsWith('.json')) continue;
+        try {
+          final decoded = jsonDecode(await entity.readAsString());
+          if (decoded is! Map<String, dynamic>) continue;
+          final item = DownloadedSong.fromJson(decoded);
+          if (item.song.id != 0 && await File(item.audioPath).exists()) {
+            results.add(item);
+          }
+        } on Object {
+          // Ignore corrupt metadata; a later cleanup can remove it.
         }
-      } on Object {
-        // Ignore corrupt metadata; a later cleanup can remove it.
       }
+      results.sort((a, b) => b.downloadedAt.compareTo(a.downloadedAt));
+      return results;
+    } on Object {
+      return const [];
     }
-    results.sort((a, b) => b.downloadedAt.compareTo(a.downloadedAt));
-    return results;
   }
 
   Future<String?> localPathForSong(int songId) async {
-    final metadata = await _metadataFile(songId);
-    if (!await metadata.exists()) return null;
     try {
+      final metadata = await _metadataFile(songId);
+      if (!await metadata.exists()) return null;
       final decoded = jsonDecode(await metadata.readAsString());
       if (decoded is! Map<String, dynamic>) return null;
       final item = DownloadedSong.fromJson(decoded);

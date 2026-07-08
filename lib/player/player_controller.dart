@@ -115,11 +115,20 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
       }
       unawaited(_loadLyrics(song.id, requestId));
-      final localPath = await _downloads.localPathForSong(hydratedSong.id);
+      var sourceLoaded = false;
+      final localPath = await _localPathForSong(hydratedSong.id);
       if (!_isCurrentRequest(requestId, song.id)) return;
       if (localPath != null) {
-        await _audio.setFilePath(localPath).timeout(const Duration(seconds: 12));
-      } else {
+        try {
+          await _audio
+              .setFilePath(localPath)
+              .timeout(const Duration(seconds: 12));
+          sourceLoaded = true;
+        } on Object {
+          sourceLoaded = false;
+        }
+      }
+      if (!sourceLoaded) {
         final url = await _api.songUrl(hydratedSong);
         if (!_isCurrentRequest(requestId, song.id)) return;
         if (url == null) {
@@ -151,6 +160,14 @@ class PlayerController extends ChangeNotifier {
         _isLoading = false;
         notifyListeners();
       }
+    }
+  }
+
+  Future<String?> _localPathForSong(int songId) async {
+    try {
+      return await _downloads.localPathForSong(songId);
+    } on Object {
+      return null;
     }
   }
 

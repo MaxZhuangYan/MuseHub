@@ -205,11 +205,15 @@ class AppState extends ChangeNotifier {
   bool isFavorite(Song song) => _favoriteIds.contains(song.id);
 
   Future<void> refreshDownloads() async {
-    final items = await downloadService.listDownloads();
-    _downloads
-      ..clear()
-      ..addEntries(items.map((item) => MapEntry(item.song.id, item)));
-    notifyListeners();
+    try {
+      final items = await downloadService.listDownloads();
+      _downloads
+        ..clear()
+        ..addEntries(items.map((item) => MapEntry(item.song.id, item)));
+      notifyListeners();
+    } on Object {
+      // Local download indexing is best-effort and must not block app startup.
+    }
   }
 
   Future<void> downloadSong(Song song) async {
