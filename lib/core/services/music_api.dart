@@ -9,6 +9,7 @@ import '../models/home_snapshot.dart';
 import '../models/lyric_line.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
+import 'resolver_discovery_service.dart';
 
 class MusicApiException implements Exception {
   const MusicApiException(this.message);
@@ -57,11 +58,24 @@ class _RememberedMethod {
       DateTime.now().difference(rememberedAt) < const Duration(hours: 6);
 }
 
+class _ResolverConnectionException implements Exception {
+  const _ResolverConnectionException(this.uri, this.error);
+
+  final Uri uri;
+  final Object error;
+
+  @override
+  String toString() => '$error';
+}
+
 class MusicApi {
   MusicApi({
     http.Client? client,
     String baseUrl = defaultBaseUrl,
+    ResolverDiscoveryService? resolverDiscoveryService,
   })  : _client = client ?? http.Client(),
+        _resolverDiscoveryService =
+            resolverDiscoveryService ?? const ResolverDiscoveryService(),
         _baseUrl = _normalizeBaseUrl(baseUrl);
 
   static const defaultBaseUrl = 'https://music.163.com/api';
@@ -71,17 +85,21 @@ class MusicApi {
   static const _requestTimeout = Duration(seconds: 8);
   static const _probeTimeout = Duration(seconds: 4);
   static const _resolverTimeout = Duration(seconds: 45);
+  static const _localResolverTimeout = Duration(seconds: 6);
   static const _cacheTtl = Duration(minutes: 10);
   static const _maxAttempts = 3;
   static const _minLikelyAudioBytes = 128 * 1024;
 
   final http.Client _client;
+  final ResolverDiscoveryService _resolverDiscoveryService;
   final Map<String, _CachedJson> _cache = {};
   final Map<int, Set<String>> _blockedSourcesBySongId = {};
   final Map<int, _RememberedMethod> _rememberedMethodBySongId = {};
   String _baseUrl;
   String _resolverBaseUrl = defaultResolverBaseUrl;
   DateTime? _resolverUnavailableUntil;
+  Future<String?>? _resolverDiscoveryInFlight;
+  Future<String?> Function()? discoverResolverBaseUrl;
 
   String get baseUrl => _baseUrl;
   String get resolverBaseUrl => _resolverBaseUrl;
@@ -447,7 +465,11 @@ class MusicApi {
     Song song, {
     bool bypassCooldown = false,
   }) async {
-    if (_resolverBaseUrl.isEmpty) return null;
+    var baseUrl = _resolverBaseUrl;
+    if (baseUrl.isEmpty) {
+      baseUrl = await _discoverResolverBaseUrl() ?? '';
+      if (baseUrl.isEmpty) return null;
+    }
     final unavailableUntil = _resolverUnavailableUntil;
     if (!bypassCooldown &&
         unavailableUntil != null &&
@@ -455,7 +477,6 @@ class MusicApi {
       return null;
     }
 
-    final uri = Uri.parse('$_resolverBaseUrl/unblock-music');
     final blockedSources = _blockedSourcesBySongId[song.id] ?? const {};
     final enabledSources = const [
       'pyncmd',
@@ -486,47 +507,33 @@ class MusicApi {
     };
 
     try {
-      final response = await _client
-          .post(
-            uri,
-            headers: {'content-type': 'application/json'},
-            body: jsonEncode(payload),
-          )
-          .timeout(_resolverTimeout);
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        return null;
-      }
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) return null;
-      final resolved = _readResolvedAudioSource(decoded);
-      final resolvedUrl = resolved?.url;
-      if (resolvedUrl == null) {
-        developer.log(
-          'Alger fallback returned no URL for ${song.id}: ${response.body}',
-          name: 'MuseHub.MusicApi',
-        );
-      } else {
-        developer.log(
-          'Alger fallback resolved ${song.id}: $resolvedUrl',
-          name: 'MuseHub.MusicApi',
-        );
-      }
-      final validatedUrl = await _validatedAudioUrl(
-        resolvedUrl,
-        durationMs: song.durationMs,
-      );
-      if (validatedUrl == null) return null;
-      return ResolvedAudioSource(
-        url: validatedUrl,
-        source: resolved?.source ?? 'alger',
-        method: ResolveMethod.alger,
-      );
-    } on Object catch (error) {
+      return await _requestAlgerFallback(baseUrl, song, payload);
+    } on _ResolverConnectionException catch (error) {
       developer.log(
-        'Alger fallback failed for ${song.id}: $error',
+        'Alger fallback failed for ${song.id}: ${error.error}',
         name: 'MuseHub.MusicApi',
       );
-      if (_isLocalResolverUrl(uri)) {
+
+      final discoveredBaseUrl = await _discoverResolverBaseUrl();
+      if (discoveredBaseUrl != null &&
+          discoveredBaseUrl.isNotEmpty &&
+          discoveredBaseUrl != baseUrl) {
+        try {
+          return await _requestAlgerFallback(
+            discoveredBaseUrl,
+            song,
+            payload,
+          );
+        } on _ResolverConnectionException catch (retryError) {
+          developer.log(
+            'Rediscovered Alger fallback also failed for ${song.id}: '
+            '${retryError.error}',
+            name: 'MuseHub.MusicApi',
+          );
+        }
+      }
+
+      if (_isLocalOrLanResolverUrl(error.uri)) {
         _resolverUnavailableUntil = DateTime.now().add(
           const Duration(minutes: 2),
         );
@@ -535,12 +542,115 @@ class MusicApi {
     }
   }
 
-  bool _isLocalResolverUrl(Uri uri) {
+  Future<ResolvedAudioSource?> _requestAlgerFallback(
+    String baseUrl,
+    Song song,
+    Map<String, Object?> payload,
+  ) async {
+    final uri = Uri.parse('$baseUrl/unblock-music');
+    final timeout = _isLocalOrLanResolverUrl(uri)
+        ? _localResolverTimeout
+        : _resolverTimeout;
+    final http.Response response;
+    try {
+      response = await _client
+          .post(
+            uri,
+            headers: {'content-type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(timeout);
+    } on Object catch (error) {
+      throw _ResolverConnectionException(uri, error);
+    }
+
+    if (response.statusCode == 404 || response.statusCode == 405) {
+      throw _ResolverConnectionException(
+        uri,
+        'unexpected resolver status ${response.statusCode}',
+      );
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return null;
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on Object catch (error) {
+      throw _ResolverConnectionException(uri, error);
+    }
+    if (decoded is! Map<String, dynamic>) return null;
+    final resolved = _readResolvedAudioSource(decoded);
+    final resolvedUrl = resolved?.url;
+    if (resolvedUrl == null) {
+      developer.log(
+        'Alger fallback returned no URL for ${song.id}: ${response.body}',
+        name: 'MuseHub.MusicApi',
+      );
+    } else {
+      developer.log(
+        'Alger fallback resolved ${song.id}: $resolvedUrl',
+        name: 'MuseHub.MusicApi',
+      );
+    }
+    final validatedUrl = await _validatedAudioUrl(
+      resolvedUrl,
+      durationMs: song.durationMs,
+    );
+    if (validatedUrl == null) return null;
+    return ResolvedAudioSource(
+      url: validatedUrl,
+      source: resolved?.source ?? 'alger',
+      method: ResolveMethod.alger,
+    );
+  }
+
+  Future<String?> _discoverResolverBaseUrl() {
+    final inFlight = _resolverDiscoveryInFlight;
+    if (inFlight != null) return inFlight;
+
+    final future = () async {
+      final discover = discoverResolverBaseUrl;
+      final found = discover == null
+          ? await _resolverDiscoveryService.discover()
+          : await discover();
+      final normalized = _normalizeOptionalBaseUrl(found ?? '');
+      if (normalized.isEmpty || normalized == _resolverBaseUrl) {
+        return normalized.isEmpty ? null : normalized;
+      }
+
+      _resolverBaseUrl = normalized;
+      _resolverUnavailableUntil = null;
+      developer.log(
+        'Discovered Alger resolver at $normalized',
+        name: 'MuseHub.MusicApi',
+      );
+      return normalized;
+    }();
+
+    _resolverDiscoveryInFlight = future;
+    future.whenComplete(() => _resolverDiscoveryInFlight = null);
+    return future;
+  }
+
+  bool _isLocalOrLanResolverUrl(Uri uri) {
     final host = uri.host.toLowerCase();
-    return host == '127.0.0.1' ||
+    if (host == '127.0.0.1' ||
         host == 'localhost' ||
         host == '::1' ||
-        host == '10.0.2.2';
+        host == '10.0.2.2') {
+      return true;
+    }
+
+    final parts = host.split('.').map(int.tryParse).toList();
+    if (parts.length != 4 || parts.any((part) => part == null)) return false;
+    final first = parts[0]!;
+    final second = parts[1]!;
+    return first == 10 ||
+        (first == 172 && second >= 16 && second <= 31) ||
+        (first == 192 && second == 168) ||
+        (first == 169 && second == 254);
   }
 
   Future<List<Song>> _searchSongsFromAll(List<_ApiEndpoint> endpoints) async {

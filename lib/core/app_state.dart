@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,13 +10,25 @@ import 'models/song.dart';
 import 'services/download_service.dart';
 import 'services/musehub_server_api.dart';
 import 'services/music_api.dart';
+import 'services/resolver_discovery_service.dart';
 
 class AppState extends ChangeNotifier {
-  AppState(this.api, this.serverApi, this.downloadService);
+  AppState(
+    this.api,
+    this.serverApi,
+    this.downloadService, {
+    ResolverDiscoveryService? resolverDiscoveryService,
+  }) : resolverDiscoveryService =
+            resolverDiscoveryService ?? const ResolverDiscoveryService() {
+    _resolverDiscoveryCallback = _discoverAndPersistResolverBaseUrl;
+    api.discoverResolverBaseUrl = _resolverDiscoveryCallback;
+  }
 
   final MusicApi api;
   final MuseHubServerApi serverApi;
   final DownloadService downloadService;
+  final ResolverDiscoveryService resolverDiscoveryService;
+  late final Future<String?> Function() _resolverDiscoveryCallback;
 
   static const _apiBaseUrlKey = 'apiBaseUrl';
   static const _resolverBaseUrlKey = 'resolverBaseUrl';
@@ -34,6 +48,7 @@ class AppState extends ChangeNotifier {
   MuseUser? _currentUser;
   bool _authLoading = false;
   Locale? _locale;
+  Future<String?>? _resolverDiscoveryInFlight;
 
   String get apiBaseUrl => _apiBaseUrl;
   String get resolverBaseUrl => _resolverBaseUrl;
@@ -78,6 +93,9 @@ class AppState extends ChangeNotifier {
     await _restoreSession();
     await refreshDownloads();
     notifyListeners();
+    if (_shouldAutoDiscoverResolver(_resolverBaseUrl)) {
+      unawaited(_discoverAndPersistResolverBaseUrl());
+    }
   }
 
   Future<void> setLocale(Locale? locale) async {
@@ -109,6 +127,13 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_resolverBaseUrlKey, trimmed);
     notifyListeners();
+    if (_shouldAutoDiscoverResolver(trimmed)) {
+      unawaited(_discoverAndPersistResolverBaseUrl());
+    }
+  }
+
+  Future<String?> discoverResolverFromWifi() {
+    return _discoverAndPersistResolverBaseUrl();
   }
 
   Future<void> setServerBaseUrl(String value) async {
@@ -239,6 +264,55 @@ class AppState extends ChangeNotifier {
 
   Future<void> openDownloadDirectory() {
     return downloadService.openDownloadDirectory();
+  }
+
+  Future<String?> _discoverAndPersistResolverBaseUrl() {
+    final inFlight = _resolverDiscoveryInFlight;
+    if (inFlight != null) return inFlight;
+
+    final future = () async {
+      final found = await resolverDiscoveryService.discover();
+      final normalized = MusicApi.normalizeOptionalBaseUrl(found ?? '');
+      if (normalized.isEmpty) return null;
+
+      _resolverBaseUrl = normalized;
+      api.resolverBaseUrl = normalized;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_resolverBaseUrlKey, normalized);
+      notifyListeners();
+      return normalized;
+    }();
+
+    _resolverDiscoveryInFlight = future;
+    future.whenComplete(() => _resolverDiscoveryInFlight = null);
+    return future;
+  }
+
+  bool _shouldAutoDiscoverResolver(String value) {
+    final normalized = MusicApi.normalizeOptionalBaseUrl(value);
+    if (normalized.isEmpty) return true;
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || uri.host.isEmpty) return true;
+    return _isLocalOrLanHost(uri.host);
+  }
+
+  bool _isLocalOrLanHost(String rawHost) {
+    final host = rawHost.toLowerCase();
+    if (host == '127.0.0.1' ||
+        host == 'localhost' ||
+        host == '::1' ||
+        host == '10.0.2.2') {
+      return true;
+    }
+
+    final parts = host.split('.').map(int.tryParse).toList();
+    if (parts.length != 4 || parts.any((part) => part == null)) return false;
+    final first = parts[0]!;
+    final second = parts[1]!;
+    return first == 10 ||
+        (first == 172 && second >= 16 && second <= 31) ||
+        (first == 192 && second == 168) ||
+        (first == 169 && second == 254);
   }
 
   Future<void> _restoreSession() async {
@@ -410,5 +484,13 @@ class AppState extends ChangeNotifier {
       TargetPlatform.macOS => 'http://127.0.0.1:30490',
       _ => MuseHubServerApi.defaultBaseUrl,
     };
+  }
+
+  @override
+  void dispose() {
+    if (identical(api.discoverResolverBaseUrl, _resolverDiscoveryCallback)) {
+      api.discoverResolverBaseUrl = null;
+    }
+    super.dispose();
   }
 }

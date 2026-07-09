@@ -195,12 +195,10 @@ const _en = {
   'searchForMusic': 'Search for music',
   'searchEmptyBody': 'Find songs, artists, and albums to build your queue.',
   'apiBaseUrl': 'API base URL',
-  'resolverUrl': 'Alger fallback resolver URL',
+  'resolverUrl': 'Alger fallback resolver',
   'resolverHelper':
-      'Optional. Try Auto-discover first. Manual fallback — macOS: '
-          'http://127.0.0.1:30489 · Android emulator: http://10.0.2.2:30489 · '
-          'Physical phone: your Mac\'s LAN IP, e.g. http://192.168.1.x:30489 — '
-          '127.0.0.1 will not work from a real device.',
+      'Usually handled automatically. Keep this empty unless you need an '
+          'advanced manual fallback for a resolver you run yourself.',
   'testConnection': 'Test',
   'resolverDiscoverOnWifi': 'Auto-discover on Wi-Fi',
   'resolverDiscovering': 'Looking on this Wi-Fi network…',
@@ -209,7 +207,7 @@ const _en = {
           'phone are on the same network, or enter the address manually.',
   'resolverTestOk': 'Connected',
   'resolverTestOkWithSources': 'Connected — sources: {sources}',
-  'resolverTestEmpty': 'Enter a resolver URL first.',
+  'resolverTestEmpty': 'No manual resolver URL is set.',
   'resolverTestTimeout': 'Timed out. Is the resolver running and reachable?',
   'resolverTestUnreachable': 'Could not reach this address.',
   'resolverTestBadStatus': 'Resolver responded with an error ({code}).',
@@ -299,18 +297,15 @@ const _zhHans = {
   'searchForMusic': '搜索音乐',
   'searchEmptyBody': '查找歌曲、艺人和专辑，加入你的播放队列。',
   'apiBaseUrl': 'API 服务地址',
-  'resolverUrl': 'Alger 备用解析服务地址',
-  'resolverHelper':
-      '可选。优先试试"自动发现"。手动填写备用 —— macOS：http://127.0.0.1:30489 · '
-          'Android模拟器：http://10.0.2.2:30489 · 真机：填你 Mac 的局域网IP，例如 '
-          'http://192.168.1.x:30489 —— 真机上填 127.0.0.1 是连不上的。',
+  'resolverUrl': 'Alger 备用解析服务',
+  'resolverHelper': '通常会自动处理。除非你要手动指定自己运行的解析服务，否则这里可以留空。',
   'testConnection': '测试',
   'resolverDiscoverOnWifi': '在 Wi-Fi 中自动发现',
   'resolverDiscovering': '正在这个 Wi-Fi 网络里查找…',
   'resolverDiscoverNotFound': '在当前 Wi-Fi 网络没找到。确认手机和 Mac 连的是同一个网络，或者手动填地址。',
   'resolverTestOk': '连接成功',
   'resolverTestOkWithSources': '连接成功 — 可用源：{sources}',
-  'resolverTestEmpty': '请先填写解析器地址。',
+  'resolverTestEmpty': '当前没有手动设置解析服务地址。',
   'resolverTestTimeout': '连接超时，解析器是否正在运行且可访问？',
   'resolverTestUnreachable': '无法连接到该地址。',
   'resolverTestBadStatus': '解析器返回了错误（{code}）。',
@@ -397,18 +392,15 @@ const _zhHant = {
   'searchForMusic': '搜尋音樂',
   'searchEmptyBody': '查找歌曲、藝人和專輯，加入你的播放佇列。',
   'apiBaseUrl': 'API 服務位址',
-  'resolverUrl': 'Alger 備用解析服務位址',
-  'resolverHelper':
-      '可選。優先試試「自動發現」。手動填寫備用 —— macOS：http://127.0.0.1:30489 · '
-          'Android模擬器：http://10.0.2.2:30489 · 真機：填你 Mac 的區網IP，例如 '
-          'http://192.168.1.x:30489 —— 真機上填 127.0.0.1 是連不上的。',
+  'resolverUrl': 'Alger 備用解析服務',
+  'resolverHelper': '通常會自動處理。除非你要手動指定自己執行的解析服務，否則這裡可以留空。',
   'testConnection': '測試',
   'resolverDiscoverOnWifi': '在 Wi-Fi 中自動發現',
   'resolverDiscovering': '正在這個 Wi-Fi 網路裡尋找…',
   'resolverDiscoverNotFound': '在目前 Wi-Fi 網路沒找到。確認手機和 Mac 連的是同一個網路，或者手動填位址。',
   'resolverTestOk': '連接成功',
   'resolverTestOkWithSources': '連接成功 — 可用源：{sources}',
-  'resolverTestEmpty': '請先填寫解析器位址。',
+  'resolverTestEmpty': '目前沒有手動設定解析服務位址。',
   'resolverTestTimeout': '連接逾時，解析器是否正在執行且可存取？',
   'resolverTestUnreachable': '無法連接到該位址。',
   'resolverTestBadStatus': '解析器回傳了錯誤（{code}）。',
