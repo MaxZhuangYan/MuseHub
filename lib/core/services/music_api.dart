@@ -45,7 +45,7 @@ class ResolvedAudioSource {
 /// the method that is actually likely to work, instead of re-running the
 /// full direct -> compatible -> legacy -> Alger cascade from scratch every
 /// single time.
-enum ResolveMethod { direct, compatible, compatibleLegacy, alger }
+enum ResolveMethod { direct, compatible, compatibleLegacy, mirror, alger }
 
 class _RememberedMethod {
   _RememberedMethod(this.method) : rememberedAt = DateTime.now();
@@ -68,6 +68,14 @@ class MusicApi {
   static const legacyBaseUrl =
       'https://netease-cloud-music-api-five-roan-88.vercel.app';
   static const defaultResolverBaseUrl = '';
+
+  // GD Studio's public music API — the same source @unblockneteasemusic's
+  // "pyncmd" provider uses. Takes a Netease song id directly and returns a
+  // playable URL (unlocking VIP/region-locked tracks server-side), so the
+  // app can unlock those tracks in pure Dart with a single GET — no local
+  // resolver process, no Node, works identically on mobile and desktop.
+  // This is what makes VIP playback work out of the box in a packaged app.
+  static const _mirrorApiBase = 'https://music-api.gdstudio.xyz/api.php';
   static const _requestTimeout = Duration(seconds: 8);
   static const _probeTimeout = Duration(seconds: 4);
   static const _resolverTimeout = Duration(seconds: 45);
@@ -264,13 +272,22 @@ class MusicApi {
     // confirmed live against an actual VIP-only track — so it stays in
     // the order for paid tracks; we just skip the one hop that's
     // guaranteed to fail.
+    // `mirror` (pure-Dart GD Studio unlock) is the out-of-the-box path for
+    // VIP/region-locked tracks — no resolver process required. `alger`
+    // stays last as an optional power-user extra: if the user happens to
+    // run tools/alger_resolver it adds more independent sources, but
+    // nothing depends on it anymore.
     final fullOrder = _usesDirectNetease
         ? const [
             ResolveMethod.direct,
-            ResolveMethod.compatibleLegacy,
+            ResolveMethod.mirror,
             ResolveMethod.alger,
           ]
-        : const [ResolveMethod.compatible, ResolveMethod.alger];
+        : const [
+            ResolveMethod.compatible,
+            ResolveMethod.mirror,
+            ResolveMethod.alger,
+          ];
     final defaultOrder = song.requiresPaidAccess
         ? fullOrder.where((m) => m != ResolveMethod.direct).toList()
         : fullOrder;
@@ -337,6 +354,11 @@ class MusicApi {
             ? null
             : ResolvedAudioSource(
                 url: url, source: 'compatible', method: method);
+      case ResolveMethod.mirror:
+        final url = await _resolveWithMirror(song);
+        return url == null
+            ? null
+            : ResolvedAudioSource(url: url, source: 'gdstudio', method: method);
       case ResolveMethod.alger:
         final resolved = await _resolveWithAlgerFallback(
           song,
@@ -387,6 +409,39 @@ class MusicApi {
     );
     if (data == null) return null;
     return _validatedAudioUrl(_readSongUrl(data), durationMs: song.durationMs);
+  }
+
+  /// Pure-Dart VIP/region unlock via GD Studio's public API — one GET, a
+  /// Netease id in, a playable URL out. No local resolver, no Node, same on
+  /// every platform. This is what lets a packaged app play VIP tracks with
+  /// zero setup. Returns Netease CDN URLs, so the player still sends the
+  /// Referer/UA headers those edges require.
+  Future<String?> _resolveWithMirror(Song song) async {
+    final uri = Uri.parse(_mirrorApiBase).replace(queryParameters: {
+      'types': 'url',
+      'source': 'netease',
+      'id': '${song.id}',
+      'br': '320',
+    });
+    try {
+      final response =
+          await _client.get(uri).timeout(const Duration(seconds: 10));
+      if (response.statusCode < 200 || response.statusCode >= 300) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final url = decoded['url']?.toString();
+      if (url == null || url.isEmpty) return null;
+      final br = decoded['br'];
+      // br == 0 is GD Studio's "no playable stream found" signal.
+      if (br is num && br <= 0) return null;
+      return _validatedAudioUrl(url, durationMs: song.durationMs);
+    } on Object catch (error) {
+      developer.log(
+        'Mirror (GD Studio) resolve failed for ${song.id}: $error',
+        name: 'MuseHub.MusicApi',
+      );
+      return null;
+    }
   }
 
   // NeteaseCloudMusicApi-compatible servers embed this in the signed

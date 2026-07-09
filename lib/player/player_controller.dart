@@ -274,20 +274,12 @@ class PlayerController extends ChangeNotifier {
 
     if (!_isCurrentRequest(requestId, song.id)) return;
     if (!triedAny) {
-      // Every method — including the compatible API's VIP/region unlock —
-      // came back empty. For a paid track the resolver is now the only
-      // unlock path (the old public proxy is gone), so point the user at
-      // it whether it's unconfigured OR configured-but-not-running: the
-      // fix in both cases is "make sure the Alger resolver is up".
-      if (song.requiresPaidAccess) {
-        throw const MusicApiException(
-          'This VIP-only track needs the Alger resolver. Make sure it is '
-          'running (npm start in tools/alger_resolver) and reachable in '
-          'Settings, then try again.',
-        );
-      }
+      // Every source came back empty. VIP unlock now runs in-app (the
+      // mirror source), so a failure here means the track genuinely can't
+      // be found on any source right now — usually a transient network
+      // issue rather than a setup problem. A plain retry often works.
       throw const MusicApiException(
-        'This track is unavailable from the current music source.',
+        'This track could not be played right now. Please try again.',
       );
     }
     throw MusicApiException('$lastError');
