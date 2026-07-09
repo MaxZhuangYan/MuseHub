@@ -44,7 +44,13 @@ class PlayerController extends ChangeNotifier {
 
   final MusicApi _api;
   final DownloadService _downloads;
-  final AudioPlayer _audio = AudioPlayer();
+  final AudioPlayer _audio = AudioPlayer(
+    // just_audio's default header path creates a cleartext localhost proxy.
+    // On some Android debug/Studio builds that proxy can fail before its
+    // internal HttpServer is assigned, surfacing as a LateInitializationError.
+    // Android/iOS/macOS can send these headers natively, so avoid the proxy.
+    useProxyForRequestHeaders: false,
+  );
   late final StreamSubscription<Duration> _positionSub;
   late final StreamSubscription<Duration?> _durationSub;
   late final StreamSubscription<PlayerState> _stateSub;
