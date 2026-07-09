@@ -1,0 +1,4 @@
+8d46c1287736319ed723854b81e9722738813eeb4c8646e0ea8b6e22b5cf872c  MuseHub-v0.1.2-android-arm64-release.apk
+4b031c453be31b11a65b52d3ac54269e57304791ad662a3c066a8c0608227b06  MuseHub-v0.1.2-ios-unsigned.zip
+d194db8786fe362a25b5bcc1c1c6a724deb6a3698477e7dc30836029aaecb3cf  MuseHub-v0.1.2-macos-arm64.zip
+ba01990df304ba3573a8fb76df04103a8b2f61d31b8a07abc07e3cb3add6f804  MuseHub-v0.1.2-web.zip
