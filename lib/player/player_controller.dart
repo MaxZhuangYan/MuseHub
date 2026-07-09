@@ -16,6 +16,20 @@ class PlayerController extends ChangeNotifier {
   PlayerController(this._api, this._downloads) {
     _positionSub = _audio.positionStream.listen((value) {
       _position = value;
+      // Belt-and-suspenders for advancing the queue: just_audio's
+      // ProcessingState doesn't always reach `completed` reliably for
+      // network-streamed audio (VBR mp3s in particular can under-report
+      // their true length, so the player just stalls at the last known
+      // position instead of cleanly finishing). Treat "position caught up
+      // to the known duration" as completion too — _handlePlaybackCompleted
+      // is idempotent via _completionHandled, so this is safe to call
+      // alongside the state-stream-driven trigger below.
+      if (!_isLoading &&
+          !_recoveringStall &&
+          _duration > Duration.zero &&
+          value >= _duration - const Duration(milliseconds: 400)) {
+        unawaited(_handlePlaybackCompleted());
+      }
       notifyListeners();
     });
     _durationSub = _audio.durationStream.listen((value) {
