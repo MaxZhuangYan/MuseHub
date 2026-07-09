@@ -5,22 +5,23 @@
 MuseHub is a Flutter music client and self-hosted music orchestration stack
 inspired by [AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer).
 
-The current `v0.1.1` release includes a Flutter app, a Node.js/SQLite backend,
+The current `v0.1.2` release includes a Flutter app, a Node.js/SQLite backend,
 account login, favorite sync, local music source support, Netease-compatible
-search/playback, and optional Alger/unblock resolver fallback.
+search/playback, built-in restricted-track fallback resolution, and an optional
+Alger/unblock advanced resolver.
 
 ## Download
 
 Latest release:
 
-[MuseHub v0.1.1](https://github.com/MaxZhuangYan/MuseHub/releases/tag/v0.1.1)
+[MuseHub v0.1.2](https://github.com/MaxZhuangYan/MuseHub/releases/tag/v0.1.2)
 
 Release artifacts:
 
-- Android: `MuseHub-v0.1.1-android-arm64-release.apk`
-- macOS: `MuseHub-v0.1.1-macos-arm64.zip`
-- Web: `MuseHub-v0.1.1-web.zip`
-- iOS: `MuseHub-v0.1.1-ios-unsigned.zip`
+- Android: `MuseHub-v0.1.2-android-arm64-release.apk`
+- macOS: `MuseHub-v0.1.2-macos-arm64.zip`
+- Web: `MuseHub-v0.1.2-web.zip`
+- iOS: `MuseHub-v0.1.2-ios-unsigned.zip`
 
 Notes:
 
@@ -51,7 +52,8 @@ inside that same device. Use your server IP or LAN IP instead.
 - Home discovery, search, library, settings, mini player, and full player
 - Queue playback using `just_audio`
 - Netease direct/compatible API support
-- Optional Alger/unblock fallback resolver
+- Built-in fallback resolution for some VIP/region-restricted Netease tracks
+- Optional Alger/unblock advanced resolver with extra sources
 - MuseHub Server account registration and login
 - Favorite sync across devices for the same account
 - Server-side track identity, source bindings, playlist, favorite, playback
@@ -73,7 +75,7 @@ musehub-server/
   scripts/              Smoke tests and sample data helper
 
 tools/alger_resolver/   Optional unblock resolver wrapper
-release/v0.1.1/         Packaged release artifacts
+release/v0.1.2/         Packaged release artifacts
 ```
 
 ## Run Flutter App
@@ -119,8 +121,11 @@ More backend details are in [musehub-server/README.md](musehub-server/README.md)
 
 ## Optional Alger Resolver
 
-MuseHub can call an Alger-style unblock resolver when the primary source cannot
-produce a playable URL.
+MuseHub v0.1.2 has an in-app fallback path for many restricted Netease tracks,
+so a packaged app does not require a local resolver for normal playback. The
+Alger-style resolver is now an optional advanced fallback that can add more
+independent sources such as Kugou, Kuwo, Migu, QQ, and Bilibili when you run it
+yourself.
 
 ```sh
 cd tools/alger_resolver
@@ -142,7 +147,7 @@ Android emulator:         http://10.0.2.2:30489
 Physical phone on Wi-Fi:  http://YOUR_MAC_LAN_IP:30489
 ```
 
-Leave the resolver setting empty to disable it.
+Leave the resolver setting empty to use only the built-in app-side paths.
 
 ## Build
 
@@ -167,10 +172,21 @@ npm run smoke
 
 ## Release Notes
 
-`v0.1.1` is a playback stability release. It improves playback in overseas
-network environments, filters short preview/truncated audio sources more
-aggressively, sends CDN-compatible audio request headers during playback, and
-adds smoother lyrics tracking in the full player.
+`v0.1.2` focuses on making restricted-track playback usable out of the box and
+hardening queue playback. The app now includes a pure-Dart fallback resolver for
+some VIP/region-restricted Netease tracks, keeps free tracks on the normal
+direct/compatible path, and leaves the local Alger resolver as an optional
+advanced fallback rather than a required companion process.
+
+Playback stability improvements include more reliable auto-advance at track end,
+coverage for the last few seconds where some streams stop emitting clean
+completion signals, automatic skip-over for unplayable queued tracks, and an
+Android fix for just_audio's local header proxy crash in some builds.
+
+The built-in fallback currently depends on GD Studio's public Netease-compatible
+API, the same pyncmd-style source used by popular unblock projects. It is much
+smoother than requiring users to run a local resolver, but it is still an
+external single point; future releases can add more app-side mirrors.
 
 It is usable for local testing and server-backed favorite sync, but production
 distribution still needs:

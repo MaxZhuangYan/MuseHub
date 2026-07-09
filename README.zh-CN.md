@@ -5,21 +5,22 @@
 MuseHub 是一个 Flutter 音乐客户端和自托管音乐编排服务，产品方向参考
 [AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer)。
 
-当前 `v0.1.1` 版本包含 Flutter App、Node.js/SQLite 后端、账号登录、收藏同步、
-本地音乐源、网易云兼容搜索/播放，以及可选的 Alger/unblock 备用解析。
+当前 `v0.1.2` 版本包含 Flutter App、Node.js/SQLite 后端、账号登录、收藏同步、
+本地音乐源、网易云兼容搜索/播放、内置受限曲目备用解析，以及可选的
+Alger/unblock 高级备用解析。
 
 ## 下载
 
 最新版本：
 
-[MuseHub v0.1.1](https://github.com/MaxZhuangYan/MuseHub/releases/tag/v0.1.1)
+[MuseHub v0.1.2](https://github.com/MaxZhuangYan/MuseHub/releases/tag/v0.1.2)
 
 发布包：
 
-- Android：`MuseHub-v0.1.1-android-arm64-release.apk`
-- macOS：`MuseHub-v0.1.1-macos-arm64.zip`
-- Web：`MuseHub-v0.1.1-web.zip`
-- iOS：`MuseHub-v0.1.1-ios-unsigned.zip`
+- Android：`MuseHub-v0.1.2-android-arm64-release.apk`
+- macOS：`MuseHub-v0.1.2-macos-arm64.zip`
+- Web：`MuseHub-v0.1.2-web.zip`
+- iOS：`MuseHub-v0.1.2-ios-unsigned.zip`
 
 说明：
 
@@ -49,7 +50,8 @@ Alger Resolver: 如果你没有自己运行解析服务，就留空
 - 首页发现、搜索、资料库、设置、迷你播放器、全屏播放器
 - 基于 `just_audio` 的队列播放
 - 网易云直连/兼容 API 支持
-- 可选 Alger/unblock 备用解析
+- 对部分 VIP / 区域受限网易云曲目的内置备用解析
+- 可选 Alger/unblock 高级备用解析，可补充更多独立音源
 - MuseHub Server 账号注册和登录
 - 同账号跨设备收藏同步
 - 后端 Track 身份、Source Binding、歌单、收藏、播放状态、历史 API
@@ -70,7 +72,7 @@ musehub-server/
   scripts/              Smoke test 和示例数据脚本
 
 tools/alger_resolver/   可选 unblock resolver 包装服务
-release/v0.1.1/         已打包的发布产物
+release/v0.1.2/         已打包的发布产物
 ```
 
 ## 运行 Flutter App
@@ -116,7 +118,9 @@ MUSIC_DIR=./music npm run dev
 
 ## 可选 Alger Resolver
 
-当主音源无法返回可播放 URL 时，MuseHub 可以调用 Alger 风格的 unblock resolver。
+MuseHub v0.1.2 已经在 App 内置了部分受限网易云曲目的备用解析链路，正常安装后
+不需要手动启动本地 resolver。Alger 风格 resolver 现在是可选的高级备用项：你自己运行
+它时，可以额外提供酷狗、酷我、咪咕、QQ、B 站等独立来源。
 
 ```sh
 cd tools/alger_resolver
@@ -138,7 +142,7 @@ Android 模拟器：       http://10.0.2.2:30489
 同一 Wi-Fi 的真机：    http://YOUR_MAC_LAN_IP:30489
 ```
 
-不需要备用解析时留空。
+留空则只使用 App 内置播放链路。
 
 ## 构建
 
@@ -163,8 +167,17 @@ npm run smoke
 
 ## 发布说明
 
-`v0.1.1` 是播放稳定性版本，重点改善海外网络环境下的播放链路，增强短试听片段和截断音频源过滤，
-播放时补齐 CDN 兼容请求头，并优化全屏播放器歌词跟踪体验。
+`v0.1.2` 重点解决受限曲目“装好即用”和队列播放稳定性。App 现在内置纯 Dart
+备用解析链路，可覆盖部分 VIP / 区域受限网易云曲目；免费曲目仍优先走正常直连/兼容链路。
+本地 Alger resolver 降级为可选高级备用项，不再是普通播放的必需配套进程。
+
+播放稳定性方面，这版修复了歌曲结束后偶尔不自动下一首的问题，补上最后几秒进度信号不可靠时的
+结束判断，自动播放遇到无法解析的队列曲目会跳过，并修复部分 Android 构建里 just_audio
+请求头本地代理导致的播放崩溃。
+
+需要如实说明：内置备用解析目前依赖 GD Studio 的公开网易云兼容 API，也就是常见 unblock
+项目使用的 pyncmd 风格来源。它比要求用户手动跑本地 resolver 顺滑很多，但仍是外部单点；
+后续版本可以继续补更多 App 侧镜像源。
 
 这个版本可以用于本地测试和基于 server 的收藏同步。正式分发还需要：
 
