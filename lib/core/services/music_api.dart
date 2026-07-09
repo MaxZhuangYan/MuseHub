@@ -527,8 +527,13 @@ class MusicApi {
         name: 'MuseHub.MusicApi',
       );
       if (_isLocalResolverUrl(uri)) {
+        // Short cooldown only — this exists to avoid hammering a resolver
+        // that's genuinely not running, but a single transient blip (a
+        // slow mirror, a momentary network hiccup) shouldn't disable
+        // autoplay's resolver path for minutes. Manual plays bypass this
+        // entirely; only autoplay/stall-recovery respect it.
         _resolverUnavailableUntil = DateTime.now().add(
-          const Duration(minutes: 2),
+          const Duration(seconds: 30),
         );
       }
       return null;

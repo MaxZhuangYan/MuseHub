@@ -395,12 +395,28 @@ class AppState extends ChangeNotifier {
 
   static String get _defaultResolverBaseUrl {
     if (kIsWeb) return MusicApi.defaultResolverBaseUrl;
-    if (!kDebugMode) return MusicApi.defaultResolverBaseUrl;
-    return switch (defaultTargetPlatform) {
-      TargetPlatform.android => 'http://10.0.2.2:30489',
-      TargetPlatform.macOS => 'http://127.0.0.1:30489',
-      _ => MusicApi.defaultResolverBaseUrl,
-    };
+    // On desktop the resolver runs on the SAME machine, so localhost is
+    // always the right address — in release too, not just debug. This is
+    // what makes VIP/region-locked playback work out of the box for a
+    // desktop user who simply runs `npm start` in tools/alger_resolver,
+    // with no manual configuration. (Previously release desktop builds
+    // defaulted to an empty resolver, which — now that the old public
+    // proxy is gone — left VIP tracks with no working unlock path at all.)
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return 'http://127.0.0.1:30489';
+      case TargetPlatform.android:
+        // 10.0.2.2 is the emulator's alias for the host machine; only
+        // useful in debug. A real device must auto-discover or be told the
+        // Mac's LAN IP, so leave it empty in release.
+        return kDebugMode
+            ? 'http://10.0.2.2:30489'
+            : MusicApi.defaultResolverBaseUrl;
+      default:
+        return MusicApi.defaultResolverBaseUrl;
+    }
   }
 
   static String get _defaultServerBaseUrl {

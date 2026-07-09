@@ -275,12 +275,15 @@ class PlayerController extends ChangeNotifier {
     if (!_isCurrentRequest(requestId, song.id)) return;
     if (!triedAny) {
       // Every method — including the compatible API's VIP/region unlock —
-      // came back empty. Enabling the Alger resolver in Settings adds one
-      // more independent source worth trying for genuinely hard cases.
-      if (song.requiresPaidAccess && _api.resolverBaseUrl.isEmpty) {
+      // came back empty. For a paid track the resolver is now the only
+      // unlock path (the old public proxy is gone), so point the user at
+      // it whether it's unconfigured OR configured-but-not-running: the
+      // fix in both cases is "make sure the Alger resolver is up".
+      if (song.requiresPaidAccess) {
         throw const MusicApiException(
-          'This VIP-only track could not be unlocked. Enabling the Alger '
-          'fallback resolver in Settings may find it on another source.',
+          'This VIP-only track needs the Alger resolver. Make sure it is '
+          'running (npm start in tools/alger_resolver) and reachable in '
+          'Settings, then try again.',
         );
       }
       throw const MusicApiException(
@@ -374,28 +377,21 @@ class PlayerController extends ChangeNotifier {
   }
 
   void _checkPlaybackStall() {
-    if (_current == null ||
-        !_audio.playing ||
-        _isLoading ||
-        _error != null ||
-        _recoveringStall) {
+    if (_current == null || _isLoading || _recoveringStall) {
       _resetStallWatchdog();
       return;
     }
-    if (_audio.processingState == ProcessingState.completed ||
-        _audio.processingState == ProcessingState.idle) {
-      _resetStallWatchdog();
-      return;
-    }
+
+    // End-of-track detection comes FIRST, on purpose — before the
+    // `!_audio.playing` guard. Several backends flip `playing` to false at
+    // the natural end of a track WITHOUT ever emitting
+    // ProcessingState.completed, so putting this after that guard (as it
+    // was) meant a finished track just sat at "-00:00" forever, never
+    // advancing. If position has reached the known duration, the track is
+    // done regardless of what `playing`/`processingState` claim — route it
+    // straight into the same path the manual "next" button uses.
     if (_duration > Duration.zero &&
-        _position >= _duration - const Duration(seconds: 3)) {
-      // Near the natural end, position updates often slow down or stop
-      // firing altogether even though the player hasn't cleanly reached
-      // ProcessingState.completed yet — that's the dead zone the position-
-      // stream-based check above can't reach, since it only runs when a
-      // new position event actually arrives. This timer runs regardless.
-      // Give it a couple of ticks in case it's still genuinely finishing
-      // up, then treat it as done rather than sitting here forever.
+        _position >= _duration - const Duration(seconds: 1)) {
       _lastWatchdogPosition = null;
       _stalledTicks = 0;
       _nearEndTicks += 1;
@@ -406,6 +402,18 @@ class PlayerController extends ChangeNotifier {
       return;
     }
     _nearEndTicks = 0;
+
+    // Past here we're mid-track and genuinely need active playback to
+    // judge whether it's stalled.
+    if (!_audio.playing || _error != null) {
+      _resetStallWatchdog();
+      return;
+    }
+    if (_audio.processingState == ProcessingState.completed ||
+        _audio.processingState == ProcessingState.idle) {
+      _resetStallWatchdog();
+      return;
+    }
 
     final last = _lastWatchdogPosition;
     _lastWatchdogPosition = _position;
