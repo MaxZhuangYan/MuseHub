@@ -86,6 +86,7 @@ class PlayerController extends ChangeNotifier {
   int _playRequestId = 0;
   Duration? _lastWatchdogPosition;
   int _stalledTicks = 0;
+  int _nearEndTicks = 0;
   int _stallRecoveryAttempts = 0;
   bool _recoveringStall = false;
   bool _completionHandled = false;
@@ -388,9 +389,23 @@ class PlayerController extends ChangeNotifier {
     }
     if (_duration > Duration.zero &&
         _position >= _duration - const Duration(seconds: 3)) {
-      _resetStallWatchdog();
+      // Near the natural end, position updates often slow down or stop
+      // firing altogether even though the player hasn't cleanly reached
+      // ProcessingState.completed yet — that's the dead zone the position-
+      // stream-based check above can't reach, since it only runs when a
+      // new position event actually arrives. This timer runs regardless.
+      // Give it a couple of ticks in case it's still genuinely finishing
+      // up, then treat it as done rather than sitting here forever.
+      _lastWatchdogPosition = null;
+      _stalledTicks = 0;
+      _nearEndTicks += 1;
+      if (_nearEndTicks >= 2) {
+        _nearEndTicks = 0;
+        unawaited(_handlePlaybackCompleted());
+      }
       return;
     }
+    _nearEndTicks = 0;
 
     final last = _lastWatchdogPosition;
     _lastWatchdogPosition = _position;
@@ -417,6 +432,7 @@ class PlayerController extends ChangeNotifier {
   void _resetStallWatchdog() {
     _lastWatchdogPosition = null;
     _stalledTicks = 0;
+    _nearEndTicks = 0;
   }
 
   Future<void> _recoverStalledPlayback() async {
