@@ -25,7 +25,9 @@ class PlayerController extends ChangeNotifier {
     _stateSub = _audio.playerStateStream.listen((state) {
       _isPlaying = state.playing;
       if (!_isLoading && state.processingState == ProcessingState.completed) {
-        unawaited(next(automatic: true));
+        unawaited(_handlePlaybackCompleted());
+      } else if (state.processingState != ProcessingState.completed) {
+        _completionHandled = false;
       }
       notifyListeners();
     });
@@ -70,6 +72,7 @@ class PlayerController extends ChangeNotifier {
   Duration? _lastWatchdogPosition;
   int _stalledTicks = 0;
   bool _recoveringStall = false;
+  bool _completionHandled = false;
   String? _currentAudioSource;
 
   // Ambient color extracted from current song cover art
@@ -104,7 +107,12 @@ class PlayerController extends ChangeNotifier {
     return active;
   }
 
-  Future<void> playSong(Song song, {List<Song>? queue}) async {
+  Future<void> playSong(
+    Song song, {
+    List<Song>? queue,
+    bool automatic = false,
+    int automaticSkipCount = 0,
+  }) async {
     final requestId = ++_playRequestId;
     if (queue != null && queue.isNotEmpty) {
       _queue = queue;
@@ -121,6 +129,9 @@ class PlayerController extends ChangeNotifier {
     _isPlaying = false;
     _isLoading = true;
     _error = null;
+    _completionHandled = false;
+    _currentAudioSource = null;
+    _resetStallWatchdog();
     notifyListeners();
 
     // Kick off palette extraction in parallel; result notifies independently
@@ -168,6 +179,14 @@ class PlayerController extends ChangeNotifier {
       if (!_isCurrentRequest(requestId, song.id)) return;
       await _audio.stop();
       if (!_isCurrentRequest(requestId, song.id)) return;
+      if (automatic &&
+          await _skipFailedAutomaticTrack(
+            song,
+            requestId,
+            automaticSkipCount,
+          )) {
+        return;
+      }
       _position = Duration.zero;
       _isPlaying = false;
       _error = error.toString();
@@ -303,6 +322,39 @@ class PlayerController extends ChangeNotifier {
   bool _isCurrentRequest(int requestId, int songId) =>
       requestId == _playRequestId && _current?.id == songId;
 
+  Future<void> _handlePlaybackCompleted() async {
+    if (_completionHandled ||
+        _isLoading ||
+        _recoveringStall ||
+        _current == null) {
+      return;
+    }
+    _completionHandled = true;
+    await next(automatic: true);
+  }
+
+  Future<bool> _skipFailedAutomaticTrack(
+    Song failedSong,
+    int requestId,
+    int automaticSkipCount,
+  ) async {
+    if (!_isCurrentRequest(requestId, failedSong.id)) return true;
+    if (_repeatMode == PlaybackRepeatMode.one || _queue.length < 2) {
+      return false;
+    }
+    if (automaticSkipCount >= _queue.length - 1) return false;
+
+    final nextSong = _nextSong(respectRepeatOne: false);
+    if (nextSong == null || nextSong.id == failedSong.id) return false;
+
+    await playSong(
+      nextSong,
+      automatic: true,
+      automaticSkipCount: automaticSkipCount + 1,
+    );
+    return true;
+  }
+
   void _checkPlaybackStall() {
     if (_current == null ||
         !_audio.playing ||
@@ -407,7 +459,14 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> next({bool automatic = false}) async {
     final song = _nextSong(respectRepeatOne: automatic);
-    if (song != null) await playSong(song);
+    if (song != null) {
+      await playSong(song, automatic: automatic);
+    } else if (automatic) {
+      await _audio.stop();
+      _position = Duration.zero;
+      _isPlaying = false;
+      notifyListeners();
+    }
   }
 
   Future<void> previous() async {
@@ -417,9 +476,9 @@ class PlayerController extends ChangeNotifier {
 
   void cycleRepeatMode() {
     _repeatMode = switch (_repeatMode) {
-      PlaybackRepeatMode.off => PlaybackRepeatMode.one,
-      PlaybackRepeatMode.one => PlaybackRepeatMode.all,
-      PlaybackRepeatMode.all => PlaybackRepeatMode.off,
+      PlaybackRepeatMode.off => PlaybackRepeatMode.all,
+      PlaybackRepeatMode.all => PlaybackRepeatMode.one,
+      PlaybackRepeatMode.one => PlaybackRepeatMode.off,
     };
     notifyListeners();
   }
