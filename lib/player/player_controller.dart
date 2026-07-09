@@ -43,6 +43,7 @@ class PlayerController extends ChangeNotifier {
             '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     'Referer': 'https://music.163.com/',
   };
+  static const _maxStallRecoveriesPerTrack = 2;
 
   final MusicApi _api;
   final DownloadService _downloads;
@@ -71,6 +72,7 @@ class PlayerController extends ChangeNotifier {
   int _playRequestId = 0;
   Duration? _lastWatchdogPosition;
   int _stalledTicks = 0;
+  int _stallRecoveryAttempts = 0;
   bool _recoveringStall = false;
   bool _completionHandled = false;
   String? _currentAudioSource;
@@ -131,6 +133,7 @@ class PlayerController extends ChangeNotifier {
     _error = null;
     _completionHandled = false;
     _currentAudioSource = null;
+    _stallRecoveryAttempts = 0;
     _resetStallWatchdog();
     notifyListeners();
 
@@ -180,7 +183,7 @@ class PlayerController extends ChangeNotifier {
       await _audio.stop();
       if (!_isCurrentRequest(requestId, song.id)) return;
       if (automatic &&
-          await _skipFailedAutomaticTrack(
+          await _skipCurrentQueueTrack(
             song,
             requestId,
             automaticSkipCount,
@@ -333,7 +336,7 @@ class PlayerController extends ChangeNotifier {
     await next(automatic: true);
   }
 
-  Future<bool> _skipFailedAutomaticTrack(
+  Future<bool> _skipCurrentQueueTrack(
     Song failedSong,
     int requestId,
     int automaticSkipCount,
@@ -406,6 +409,19 @@ class PlayerController extends ChangeNotifier {
     final song = _current;
     if (song == null || _recoveringStall) return;
     final requestId = _playRequestId;
+    _stallRecoveryAttempts += 1;
+    if (_stallRecoveryAttempts > _maxStallRecoveriesPerTrack) {
+      if (await _skipCurrentQueueTrack(song, requestId, 0)) {
+        return;
+      }
+      await _audio.stop();
+      if (!_isCurrentRequest(requestId, song.id)) return;
+      _isPlaying = false;
+      _error = 'Playback stalled and no next track is available.';
+      _errorVersion++;
+      notifyListeners();
+      return;
+    }
     final resumeAt = _position;
     _api.temporarilyBlockSource(song.id, _currentAudioSource);
     _recoveringStall = true;
