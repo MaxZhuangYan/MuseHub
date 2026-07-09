@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:multicast_dns/multicast_dns.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
@@ -605,6 +606,11 @@ class _ResolverFieldState extends State<_ResolverField> {
   String? _resultMessage;
   bool _discovering = false;
 
+  // Matches the service type tools/alger_resolver advertises via
+  // bonjour-service. Finding it means "there's a resolver reachable on
+  // this Wi-Fi network right now" without the user ever typing an IP.
+  static const _serviceType = '_musehub-resolver._tcp.local';
+
   Future<void> _discoverResolver() async {
     final strings = AppStrings.of(context);
     setState(() {
@@ -612,9 +618,47 @@ class _ResolverFieldState extends State<_ResolverField> {
       _resultMessage = null;
     });
 
+    final client = MDnsClient();
     try {
-      final foundUrl =
-          await context.read<AppState>().discoverResolverFromWifi();
+      await client.start();
+      final ptrRecords = await client
+          .lookup<PtrResourceRecord>(
+            ResourceRecordQuery.serverPointer(_serviceType),
+          )
+          .toList()
+          .timeout(
+            const Duration(seconds: 4),
+            onTimeout: () => const <PtrResourceRecord>[],
+          );
+
+      String? foundUrl;
+      for (final ptr in ptrRecords) {
+        final srvRecords = await client
+            .lookup<SrvResourceRecord>(
+              ResourceRecordQuery.service(ptr.domainName),
+            )
+            .toList()
+            .timeout(
+              const Duration(seconds: 2),
+              onTimeout: () => const <SrvResourceRecord>[],
+            );
+        for (final srv in srvRecords) {
+          final ipRecords = await client
+              .lookup<IPAddressResourceRecord>(
+                ResourceRecordQuery.addressIPv4(srv.target),
+              )
+              .toList()
+              .timeout(
+                const Duration(seconds: 2),
+                onTimeout: () => const <IPAddressResourceRecord>[],
+              );
+          if (ipRecords.isNotEmpty) {
+            foundUrl = 'http://${ipRecords.first.address.address}:${srv.port}';
+            break;
+          }
+        }
+        if (foundUrl != null) break;
+      }
 
       if (!mounted) return;
       if (foundUrl == null) {
@@ -636,6 +680,8 @@ class _ResolverFieldState extends State<_ResolverField> {
         _state = _ResolverTestState.failure;
         _resultMessage = strings.resolverDiscoverNotFound;
       });
+    } finally {
+      client.stop();
     }
   }
 
