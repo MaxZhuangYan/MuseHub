@@ -245,6 +245,9 @@ class _FullPlayerPageState extends State<FullPlayerPage> {
                               onShowQueue: () => _showQueue(context),
                             ),
 
+                            // ── Volume ──
+                            _VolumeRow(player: player),
+
                             // ── Bottom row: lyrics pill + queue ──
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -686,6 +689,70 @@ class _TimeLabel extends StatelessWidget {
         fontWeight: FontWeight.w600,
         color: MuseTheme.textSecondary,
       ),
+    );
+  }
+}
+
+// ── Volume ────────────────────────────────────────────────────────────────────
+
+class _VolumeRow extends StatelessWidget {
+  const _VolumeRow({required this.player});
+  final PlayerController player;
+
+  IconData _icon(double v) {
+    if (v <= 0.0) return Icons.volume_off_rounded;
+    if (v < 0.5) return Icons.volume_down_rounded;
+    return Icons.volume_up_rounded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final volume = player.volume;
+    final strings = AppStrings.of(context);
+    return Row(
+      children: [
+        IconButton(
+          tooltip: volume <= 0.0 ? strings.unmute : strings.mute,
+          visualDensity: VisualDensity.compact,
+          icon: Icon(_icon(volume),
+              size: 20, color: MuseTheme.textSecondary),
+          // Toggle mute; restore to full when un-muting from zero.
+          onPressed: () => player.setVolume(volume <= 0.0 ? 1.0 : 0.0),
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: MuseTheme.textPrimary.withValues(alpha: 0.75),
+              inactiveTrackColor:
+                  MuseTheme.textPrimary.withValues(alpha: 0.16),
+              thumbColor: MuseTheme.textPrimary,
+              overlayColor: MuseTheme.textPrimary.withValues(alpha: 0.12),
+              trackHeight: 3,
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape:
+                  const RoundSliderOverlayShape(overlayRadius: 12),
+            ),
+            child: Slider(
+              value: volume,
+              onChanged: player.setVolume,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 34,
+          child: Text(
+            '${(volume * 100).round()}',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.hankenGrotesk(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: MuseTheme.textSecondary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

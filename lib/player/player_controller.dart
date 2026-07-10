@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:palette_generator/palette_generator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/models/lyric_line.dart';
 import '../core/models/song.dart';
@@ -49,6 +50,7 @@ class PlayerController extends ChangeNotifier {
       const Duration(seconds: 3),
       (_) => _checkPlaybackStall(),
     );
+    unawaited(_restoreVolume());
   }
 
   static const _audioStreamHeaders = {
@@ -91,6 +93,7 @@ class PlayerController extends ChangeNotifier {
   bool _recoveringStall = false;
   bool _completionHandled = false;
   String? _currentAudioSource;
+  double _volume = 1.0;
 
   // Ambient color extracted from current song cover art
   Color? _ambientColor;
@@ -111,6 +114,9 @@ class PlayerController extends ChangeNotifier {
   /// of the message string, which would otherwise de-dupe repeat failures.
   int get errorVersion => _errorVersion;
   PlaybackRepeatMode get repeatMode => _repeatMode;
+
+  /// Playback volume, 0.0–1.0. Persisted across sessions.
+  double get volume => _volume;
 
   /// Dominant/vibrant color from the currently playing song's cover art.
   Color? get ambientColor => _ambientColor;
@@ -309,6 +315,31 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> seek(Duration position) => _audio.seek(position);
+
+  static const _volumeKey = 'playerVolume';
+
+  Future<void> setVolume(double value) async {
+    final clamped = value.clamp(0.0, 1.0).toDouble();
+    if (clamped == _volume) return;
+    _volume = clamped;
+    await _audio.setVolume(clamped);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_volumeKey, clamped);
+  }
+
+  Future<void> _restoreVolume() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getDouble(_volumeKey);
+      if (stored == null) return;
+      _volume = stored.clamp(0.0, 1.0).toDouble();
+      await _audio.setVolume(_volume);
+      notifyListeners();
+    } on Object {
+      // A missing/corrupt preference just leaves volume at the 1.0 default.
+    }
+  }
 
   Future<Song> _hydrateSongForPlayback(Song song) async {
     if (song.coverUrl.isNotEmpty && song.artists.isNotEmpty) return song;

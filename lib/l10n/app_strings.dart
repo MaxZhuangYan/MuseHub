@@ -43,6 +43,8 @@ class AppStrings {
   String get settings => _t('settings');
   String get play => _t('play');
   String get pause => _t('pause');
+  String get mute => _t('mute');
+  String get unmute => _t('unmute');
   String get next => _t('next');
   String get previous => _t('previous');
   String get retry => _t('retry');
@@ -167,6 +169,8 @@ const _en = {
   'settings': 'Settings',
   'play': 'Play',
   'pause': 'Pause',
+  'mute': 'Mute',
+  'unmute': 'Unmute',
   'next': 'Next',
   'previous': 'Previous',
   'retry': 'Retry',
@@ -272,6 +276,8 @@ const _zhHans = {
   'settings': '设置',
   'play': '播放',
   'pause': '暂停',
+  'mute': '静音',
+  'unmute': '取消静音',
   'next': '下一首',
   'previous': '上一首',
   'retry': '重试',
@@ -370,6 +376,8 @@ const _zhHant = {
   'settings': '設定',
   'play': '播放',
   'pause': '暫停',
+  'mute': '靜音',
+  'unmute': '取消靜音',
   'next': '下一首',
   'previous': '上一首',
   'retry': '重試',
