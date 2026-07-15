@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -223,17 +224,32 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
+  // Metadata the OS media session (lock screen / notification / Control
+  // Center) displays for the current track.
+  MediaItem _mediaItemFor(Song song) {
+    return MediaItem(
+      id: '${song.id}',
+      title: song.name.isEmpty ? 'Unknown title' : song.name,
+      artist: song.artistText,
+      album: song.album.isEmpty ? null : song.album,
+      artUri: song.coverUrl.isEmpty ? null : Uri.tryParse(song.coverUrl),
+    );
+  }
+
   Future<void> _loadAudioSource(
     Song song,
     int requestId, {
     bool bypassResolverCooldown = false,
   }) async {
+    final mediaTag = _mediaItemFor(song);
     final localPath = await _localPathForSong(song.id);
     if (!_isCurrentRequest(requestId, song.id)) return;
     if (localPath != null) {
       try {
         await _audio
-            .setFilePath(localPath)
+            .setAudioSource(
+              AudioSource.file(localPath, tag: mediaTag),
+            )
             .timeout(const Duration(seconds: 12));
         return;
       } on Object {
@@ -264,9 +280,12 @@ class PlayerController extends ChangeNotifier {
         // though resolution "succeeded". Same convention as CoverArt.
         //
         await _audio
-            .setUrl(
-              candidate.url,
-              headers: _audioStreamHeaders,
+            .setAudioSource(
+              AudioSource.uri(
+                Uri.parse(candidate.url),
+                headers: _audioStreamHeaders,
+                tag: mediaTag,
+              ),
             )
             .timeout(const Duration(seconds: 20));
         _currentAudioSource = candidate.source;

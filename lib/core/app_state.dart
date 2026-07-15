@@ -76,8 +76,20 @@ class AppState extends ChangeNotifier {
       ..addAll(_decodeFavoriteTrackIds(
           prefs.getStringList(_favoriteTrackIdsKey) ?? const []));
     await _restoreSession();
+    // Sweep out corrupt/too-small cached audio and interrupted-download
+    // residue before indexing, so bad files never make it into the library
+    // or get preferred for playback.
+    await _cleanUpDownloadCache();
     await refreshDownloads();
     notifyListeners();
+  }
+
+  Future<void> _cleanUpDownloadCache() async {
+    try {
+      await downloadService.cleanUpCache();
+    } on Object {
+      // Best-effort; must never block startup.
+    }
   }
 
   Future<void> setLocale(Locale? locale) async {

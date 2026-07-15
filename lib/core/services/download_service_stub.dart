@@ -10,6 +10,8 @@ class DownloadService {
 
   Future<List<DownloadedSong>> listDownloads() async => const [];
 
+  Future<int> cleanUpCache() async => 0;
+
   Future<String?> localPathForSong(int songId) async => null;
 
   Future<DownloadedSong> downloadSong(Song song) {

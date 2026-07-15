@@ -1,8 +1,10 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_state.dart';
@@ -19,8 +21,28 @@ import 'features/settings/settings_page.dart';
 import 'l10n/app_strings.dart';
 import 'player/player_controller.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // System-level playback: lock screen / notification / Control Center
+  // controls, headset & bluetooth buttons, and background playback. Wraps
+  // the single AudioPlayer instance in an OS media session.
+  //
+  // Android, iOS and macOS have a media-session backend (audio_service
+  // supports all three) — Android/iOS get a lock-screen notification, macOS
+  // gets media-key + Control Center "Now Playing" integration. Windows/Linux
+  // and web have no implementation, so calling init() there would throw at
+  // startup; we skip it and the MediaItem tags we still attach are
+  // harmlessly ignored, with playback working as before.
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS)) {
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.musehub.channel.audio',
+      androidNotificationChannelName: 'MuseHub playback',
+      androidNotificationOngoing: true,
+    );
+  }
   final api = MusicApi();
   final serverApi = MuseHubServerApi();
   final downloadService = DownloadService(api: api);
