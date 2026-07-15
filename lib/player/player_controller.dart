@@ -1,9 +1,9 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,13 +11,16 @@ import '../core/models/lyric_line.dart';
 import '../core/models/song.dart';
 import '../core/services/download_service.dart';
 import '../core/services/music_api.dart';
+import 'muse_audio_handler.dart';
 
 enum PlaybackRepeatMode { off, one, all }
 
 class PlayerController extends ChangeNotifier {
-  PlayerController(this._api, this._downloads) {
+  PlayerController(this._api, this._downloads, [this._handler]) {
+    _wireMediaSession();
     _positionSub = _audio.positionStream.listen((value) {
       _position = value;
+      _broadcastState();
       // Belt-and-suspenders for advancing the queue: just_audio's
       // ProcessingState doesn't always reach `completed` reliably for
       // network-streamed audio (VBR mp3s in particular can under-report
@@ -36,6 +39,7 @@ class PlayerController extends ChangeNotifier {
     });
     _durationSub = _audio.durationStream.listen((value) {
       _duration = value ?? Duration.zero;
+      _broadcastState();
       notifyListeners();
     });
     _stateSub = _audio.playerStateStream.listen((state) {
@@ -45,6 +49,7 @@ class PlayerController extends ChangeNotifier {
       } else if (state.processingState != ProcessingState.completed) {
         _completionHandled = false;
       }
+      _broadcastState();
       notifyListeners();
     });
     _stallWatchdog = Timer.periodic(
@@ -64,6 +69,7 @@ class PlayerController extends ChangeNotifier {
 
   final MusicApi _api;
   final DownloadService _downloads;
+  final MuseAudioHandler? _handler;
   final AudioPlayer _audio = AudioPlayer(
     // just_audio's default header path creates a cleartext localhost proxy.
     // On some Android debug/Studio builds that proxy can fail before its
@@ -157,6 +163,8 @@ class PlayerController extends ChangeNotifier {
     _currentAudioSource = null;
     _stallRecoveryAttempts = 0;
     _resetStallWatchdog();
+    _broadcastMediaItem();
+    _broadcastState();
     notifyListeners();
 
     // Kick off palette extraction in parallel; result notifies independently
@@ -194,6 +202,7 @@ class PlayerController extends ChangeNotifier {
         _duration = hydratedSong.durationMs == null
             ? _duration
             : Duration(milliseconds: hydratedSong.durationMs!);
+        _broadcastMediaItem();
         notifyListeners();
       }
 
@@ -219,21 +228,10 @@ class PlayerController extends ChangeNotifier {
     } finally {
       if (_isCurrentRequest(requestId, song.id)) {
         _isLoading = false;
+        _broadcastState();
         notifyListeners();
       }
     }
-  }
-
-  // Metadata the OS media session (lock screen / notification / Control
-  // Center) displays for the current track.
-  MediaItem _mediaItemFor(Song song) {
-    return MediaItem(
-      id: '${song.id}',
-      title: song.name.isEmpty ? 'Unknown title' : song.name,
-      artist: song.artistText,
-      album: song.album.isEmpty ? null : song.album,
-      artUri: song.coverUrl.isEmpty ? null : Uri.tryParse(song.coverUrl),
-    );
   }
 
   Future<void> _loadAudioSource(
@@ -241,15 +239,12 @@ class PlayerController extends ChangeNotifier {
     int requestId, {
     bool bypassResolverCooldown = false,
   }) async {
-    final mediaTag = _mediaItemFor(song);
     final localPath = await _localPathForSong(song.id);
     if (!_isCurrentRequest(requestId, song.id)) return;
     if (localPath != null) {
       try {
         await _audio
-            .setAudioSource(
-              AudioSource.file(localPath, tag: mediaTag),
-            )
+            .setFilePath(localPath)
             .timeout(const Duration(seconds: 12));
         return;
       } on Object {
@@ -280,13 +275,7 @@ class PlayerController extends ChangeNotifier {
         // though resolution "succeeded". Same convention as CoverArt.
         //
         await _audio
-            .setAudioSource(
-              AudioSource.uri(
-                Uri.parse(candidate.url),
-                headers: _audioStreamHeaders,
-                tag: mediaTag,
-              ),
-            )
+            .setUrl(candidate.url, headers: _audioStreamHeaders)
             .timeout(const Duration(seconds: 20));
         _currentAudioSource = candidate.source;
         _api.confirmWorkingSource(song.id, candidate);
@@ -333,7 +322,95 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
+  /// Resume playback — the OS "play" transport command wants to play, not
+  /// toggle. Retries a failed track (same as tapping play) when in error.
+  Future<void> resume() async {
+    if (_current == null) return;
+    if (_error != null || !_audio.playing) await toggle();
+  }
+
+  /// Pause playback — the OS "pause" transport command.
+  Future<void> pause() async {
+    if (_audio.playing) await _audio.pause();
+  }
+
   Future<void> seek(Duration position) => _audio.seek(position);
+
+  // ── OS media session (lock screen / notification / Control Center) ──────
+
+  void _wireMediaSession() {
+    final handler = _handler;
+    if (handler == null) return;
+    handler.onPlay = () => unawaited(resume());
+    handler.onPause = () => unawaited(pause());
+    handler.onNext = () => unawaited(next());
+    handler.onPrevious = () => unawaited(previous());
+    handler.onStop = () => unawaited(pause());
+    handler.onSeek = (position) => unawaited(seek(position));
+  }
+
+  void _broadcastMediaItem() {
+    final handler = _handler;
+    final song = _current;
+    if (handler == null) return;
+    if (song == null) {
+      handler.publishMediaItem(null);
+      return;
+    }
+    handler.publishMediaItem(
+      MediaItem(
+        id: '${song.id}',
+        title: song.name.isEmpty ? 'Unknown title' : song.name,
+        artist: song.artistText,
+        album: song.album.isEmpty ? null : song.album,
+        artUri: song.coverUrl.isEmpty ? null : Uri.tryParse(song.coverUrl),
+        duration: _duration > Duration.zero ? _duration : null,
+      ),
+    );
+  }
+
+  void _broadcastState() {
+    final handler = _handler;
+    if (handler == null) return;
+    final playing = _audio.playing;
+    handler.publishPlaybackState(
+      PlaybackState(
+        controls: [
+          MediaControl.skipToPrevious,
+          if (playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.skipToNext,
+          MediaAction.skipToPrevious,
+        },
+        androidCompactActionIndices: const [0, 1, 2],
+        processingState: _mediaProcessingState(),
+        playing: playing,
+        updatePosition: _position,
+        bufferedPosition: _audio.bufferedPosition,
+        speed: _audio.speed,
+      ),
+    );
+  }
+
+  AudioProcessingState _mediaProcessingState() {
+    if (_error != null) return AudioProcessingState.error;
+    if (_isLoading) return AudioProcessingState.loading;
+    switch (_audio.processingState) {
+      case ProcessingState.idle:
+        return AudioProcessingState.idle;
+      case ProcessingState.loading:
+        return AudioProcessingState.loading;
+      case ProcessingState.buffering:
+        return AudioProcessingState.buffering;
+      case ProcessingState.ready:
+        return AudioProcessingState.ready;
+      case ProcessingState.completed:
+        return AudioProcessingState.completed;
+    }
+  }
 
   static const _volumeKey = 'playerVolume';
 

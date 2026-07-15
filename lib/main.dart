@@ -1,10 +1,10 @@
 import 'dart:ui';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_state.dart';
@@ -19,28 +19,31 @@ import 'features/player/full_player_page.dart';
 import 'features/search/search_page.dart';
 import 'features/settings/settings_page.dart';
 import 'l10n/app_strings.dart';
+import 'player/muse_audio_handler.dart';
 import 'player/player_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // System-level playback: lock screen / notification / Control Center
-  // controls, headset & bluetooth buttons, and background playback. Wraps
-  // the single AudioPlayer instance in an OS media session.
+  // controls, media keys, headset & bluetooth buttons, background playback.
   //
-  // Android, iOS and macOS have a media-session backend (audio_service
-  // supports all three) — Android/iOS get a lock-screen notification, macOS
-  // gets media-key + Control Center "Now Playing" integration. Windows/Linux
-  // and web have no implementation, so calling init() there would throw at
-  // startup; we skip it and the MediaItem tags we still attach are
-  // harmlessly ignored, with playback working as before.
+  // Android, iOS and macOS have an audio_service backend — Android/iOS get a
+  // lock-screen notification, macOS gets media-key + Control Center "Now
+  // Playing". Windows/Linux/web have no implementation, so init() there
+  // would throw at startup; we skip it and playback works as before, just
+  // without OS transport controls.
+  MuseAudioHandler? audioHandler;
   if (!kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS ||
           defaultTargetPlatform == TargetPlatform.macOS)) {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.musehub.channel.audio',
-      androidNotificationChannelName: 'MuseHub playback',
-      androidNotificationOngoing: true,
+    audioHandler = await AudioService.init(
+      builder: MuseAudioHandler.new,
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.musehub.channel.audio',
+        androidNotificationChannelName: 'MuseHub playback',
+        androidNotificationOngoing: true,
+      ),
     );
   }
   final api = MusicApi();
@@ -51,6 +54,7 @@ Future<void> main() async {
       api: api,
       serverApi: serverApi,
       downloadService: downloadService,
+      audioHandler: audioHandler,
     ),
   );
 }
@@ -60,12 +64,14 @@ class MuseHubApp extends StatelessWidget {
     required this.api,
     required this.serverApi,
     required this.downloadService,
+    this.audioHandler,
     super.key,
   });
 
   final MusicApi api;
   final MuseHubServerApi serverApi;
   final DownloadService downloadService;
+  final MuseAudioHandler? audioHandler;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +84,8 @@ class MuseHubApp extends StatelessWidget {
           create: (_) => AppState(api, serverApi, downloadService)..load(),
         ),
         ChangeNotifierProvider(
-          create: (_) => PlayerController(api, downloadService),
+          create: (_) =>
+              PlayerController(api, downloadService, audioHandler),
         ),
       ],
       child: Consumer<AppState>(
