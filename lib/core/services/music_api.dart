@@ -303,17 +303,22 @@ class MusicApi {
         : defaultOrder;
 
     for (final method in order) {
-      if (method == ResolveMethod.alger) {
-        developer.log(
-          'Trying Alger fallback for ${song.id}',
-          name: 'MuseHub.MusicApi',
-        );
-      }
+      final sw = Stopwatch()..start();
       final result = await _tryResolveMethod(
         method,
         song,
         level: level,
         bypassResolverCooldown: bypassResolverCooldown,
+      );
+      // Diagnostic for the "playback gets stall-prone the longer I've been
+      // using the app" report: per-attempt timing by method, so a source
+      // that's degrading over the session (e.g. a CDN edge throttling a
+      // sustained high-frequency client) shows up as a rising trend here
+      // instead of staying a guess.
+      developer.log(
+        'resolve method=$method song=${song.id} '
+        '${result != null ? "OK" : "miss"} in ${sw.elapsedMilliseconds}ms',
+        name: 'MuseHub.Resolve',
       );
       if (result != null) yield result;
     }

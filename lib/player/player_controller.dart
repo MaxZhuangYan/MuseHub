@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
@@ -102,6 +103,18 @@ class PlayerController extends ChangeNotifier {
   String? _currentAudioSource;
   double _volume = 1.0;
 
+  // Diagnostics for the "gets stall-prone the longer I've been listening"
+  // report — deliberately NOT a fix, since there's no confirmed root cause
+  // yet. This records, per stall event: how far into the session it
+  // happened, how many tracks had played before it, which source was
+  // playing, and how long recovery took. If the hypothesis is right
+  // (something degrades with session length — e.g. a CDN edge throttling a
+  // sustained connection, or a specific source going bad), the pattern
+  // should show up directly in these numbers instead of more guessing.
+  final DateTime _sessionStartedAt = DateTime.now();
+  int _tracksPlayedThisSession = 0;
+  int _stallEventsThisSession = 0;
+
   // Ambient color extracted from current song cover art
   Color? _ambientColor;
   int _colorRequestId = 0;
@@ -154,6 +167,7 @@ class PlayerController extends ChangeNotifier {
     int automaticSkipCount = 0,
   }) async {
     final requestId = ++_playRequestId;
+    _tracksPlayedThisSession++;
     if (queue != null && queue.isNotEmpty) {
       _queue = queue;
     } else if (!_queue.any((item) => item.id == song.id)) {
@@ -577,6 +591,16 @@ class PlayerController extends ChangeNotifier {
     if (song == null || _recoveringStall) return;
     final requestId = _playRequestId;
     _stallRecoveryAttempts += 1;
+    _stallEventsThisSession++;
+    final sessionElapsed = DateTime.now().difference(_sessionStartedAt);
+    final recoveryStopwatch = Stopwatch()..start();
+    developer.log(
+      'STALL #$_stallEventsThisSession detected — song=${song.id} '
+      'source=$_currentAudioSource tracksPlayedThisSession='
+      '$_tracksPlayedThisSession sessionElapsed=$sessionElapsed '
+      'attemptOnThisTrack=$_stallRecoveryAttempts',
+      name: 'MuseHub.Stall',
+    );
     if (_stallRecoveryAttempts > _maxStallRecoveriesPerTrack) {
       if (await _skipCurrentQueueTrack(song, requestId, 0)) {
         return;
@@ -610,12 +634,25 @@ class PlayerController extends ChangeNotifier {
       _isPlaying = false;
       _error = error.toString();
       _errorVersion++;
+      developer.log(
+        'STALL #$_stallEventsThisSession recovery FAILED after '
+        '${recoveryStopwatch.elapsedMilliseconds}ms: $error',
+        name: 'MuseHub.Stall',
+      );
     } finally {
       _recoveringStall = false;
       _resetStallWatchdog();
       if (_isCurrentRequest(requestId, song.id)) {
         _isLoading = false;
         notifyListeners();
+      }
+      if (_error == null) {
+        developer.log(
+          'STALL #$_stallEventsThisSession recovered in '
+          '${recoveryStopwatch.elapsedMilliseconds}ms, new source='
+          '$_currentAudioSource',
+          name: 'MuseHub.Stall',
+        );
       }
     }
   }
