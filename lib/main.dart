@@ -24,6 +24,16 @@ import 'player/player_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Flutter's default ImageCache caps at 1000 images / 100MB — generous
+  // enough that on a long listening session (lots of distinct cover art
+  // scrolled past in Home/Search/Library, plus every song ever played) it
+  // keeps growing for a while before eviction really kicks in, and eviction
+  // itself gets more expensive the fuller it is. A tighter, explicit cap
+  // keeps memory bounded and eviction cheap regardless of session length —
+  // this is the "gets sluggish the longer you use it" fix, not a disk
+  // cache issue.
+  PaintingBinding.instance.imageCache.maximumSize = 200;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 50 << 20; // 50MB
   // System-level playback: lock screen / notification / Control Center
   // controls, media keys, headset & bluetooth buttons, background playback.
   //

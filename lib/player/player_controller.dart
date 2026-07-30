@@ -105,6 +105,16 @@ class PlayerController extends ChangeNotifier {
   // Ambient color extracted from current song cover art
   Color? _ambientColor;
   int _colorRequestId = 0;
+  // Every playSong() unconditionally re-decoded the cover and re-sampled
+  // colors from scratch — including for a song that had already been
+  // played (replays, a looping queue, stall-recovery reloads). Over a long
+  // session that's a lot of wasted network+decode work stacking up, which
+  // matches "gets sluggish after using it a while" much better than any
+  // disk-cache issue does. Cache the result per cover URL so repeats are
+  // free; capped so this cache can't itself become the thing that grows
+  // unbounded.
+  static const _maxAmbientColorCacheEntries = 64;
+  final _ambientColorCache = <String, Color>{};
 
   List<Song> get queue => List.unmodifiable(_queue);
   Song? get current => _current;
@@ -612,6 +622,13 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> _extractAmbientColor(String coverUrl) async {
     if (coverUrl.isEmpty) return;
+    final cached = _ambientColorCache[coverUrl];
+    if (cached != null) {
+      _ambientColor = cached;
+      notifyListeners();
+      return;
+    }
+
     final reqId = ++_colorRequestId;
     try {
       final palette = await PaletteGenerator.fromImageProvider(
@@ -624,6 +641,10 @@ class PlayerController extends ChangeNotifier {
           palette.lightVibrantColor?.color ??
           palette.dominantColor?.color;
       if (color != null) {
+        if (_ambientColorCache.length >= _maxAmbientColorCacheEntries) {
+          _ambientColorCache.remove(_ambientColorCache.keys.first);
+        }
+        _ambientColorCache[coverUrl] = color;
         _ambientColor = color;
         notifyListeners();
       }
