@@ -475,13 +475,13 @@ class MusicApi {
   /// second path so one provider's outage can't take out VIP/region-locked
   /// playback entirely (which is exactly what happened when GD Studio went
   /// down). Kuwo has no concept of Netease ids, so this matches by title +
-  /// artist: search, take the top hit's rid, convert it to a stream URL.
+  /// artist.
   ///
-  /// Because it's a text match rather than an id lookup, it can occasionally
-  /// land on a cover/live/instrumental version of the right song. That's an
-  /// acceptable trade for it being a last-resort fallback: it only runs
-  /// after the id-exact paths have already failed, where the alternative is
-  /// silence.
+  /// Picking the top search hit does NOT work: Kuwo's ranking routinely puts
+  /// a karaoke/instrumental or remix above the real track (measured: "晴天"
+  /// returns "晴天 (KTV版伴奏)" first with the original third; "See You
+  /// Again" returns a Remix first). So instead we score several candidates
+  /// on title/artist match and duration, and reject junk variants outright.
   Future<String?> _resolveWithKuwo(Song song) async {
     final title = song.name.trim();
     if (title.isEmpty) return null;
@@ -491,10 +491,10 @@ class MusicApi {
       final searchUri = Uri.parse(_kuwoSearchBase).replace(queryParameters: {
         'all': keyword,
         'ft': 'music',
-        'itemnum': '5',
+        'itemnum': '10',
         'client': 'kt',
         'pn': '0',
-        'rn': '5',
+        'rn': '10',
         'rformat': 'json',
         'encoding': 'utf8',
       });
@@ -504,12 +504,8 @@ class MusicApi {
       if (searchResponse.statusCode < 200 || searchResponse.statusCode >= 300) {
         return null;
       }
-      // Kuwo replies with single-quoted pseudo-JSON that jsonDecode can't
-      // parse, so pull the first result's id out directly.
-      final match = RegExp(r"'DC_TARGETID'\s*:\s*'(\d+)'")
-          .firstMatch(searchResponse.body);
-      final rid = match?.group(1);
-      if (rid == null || rid.isEmpty) return null;
+      final rid = _bestKuwoMatch(searchResponse.body, song);
+      if (rid == null) return null;
 
       final convertUri = Uri.parse(_kuwoConvertBase).replace(queryParameters: {
         'type': 'convert_url',
@@ -534,6 +530,116 @@ class MusicApi {
       );
       return null;
     }
+  }
+
+  /// Variants Kuwo loves to rank first that are never what the user asked
+  /// for when they tapped a specific Netease track.
+  static final _kuwoJunkVariant = RegExp(
+    r'伴奏|KTV|純音樂|纯音乐|instrumental|remix|混音|cover|翻唱|翻奏|'
+    r'现场|現場|live|dj版|dj 版|铃声|鈴聲|片段|清唱|'
+    r'吉他|钢琴|鋼琴|piano|guitar|violin|小提琴|八音盒|music box|'
+    r'originally performed|original performed|tribute|karaoke|acappella|'
+    r'伴唱|前奏|尾奏|口琴|古筝|二胡',
+    caseSensitive: false,
+  );
+
+  /// Picks the best Kuwo search hit for [song], or null if nothing is a
+  /// credible match. Kuwo's own ordering is unreliable (see caller), so this
+  /// scores each candidate rather than trusting position.
+  String? _bestKuwoMatch(String responseBody, Song song) {
+    // Kuwo replies with single-quoted pseudo-JSON that jsonDecode can't
+    // parse. Split into per-record chunks and pull fields out directly.
+    final records = RegExp(r"\{'AARTIST'.*?\}").allMatches(responseBody);
+    final wantTitle = _normalizeForMatch(song.name);
+    final wantArtist = _normalizeForMatch(song.artistText);
+    final wantArtistNames = song.artists
+        .map((artist) => _normalizeForMatch(artist.name))
+        .where((name) => name.isNotEmpty)
+        .toList();
+    final wantSeconds =
+        song.durationMs == null ? null : song.durationMs! / 1000.0;
+
+    String? bestRid;
+    var bestScore = 0.0;
+    for (final record in records) {
+      final chunk = record.group(0)!;
+      final rid = _kuwoField(chunk, 'DC_TARGETID');
+      final name = _kuwoField(chunk, 'NAME');
+      if (rid == null || name == null) continue;
+      final artistName = _kuwoField(chunk, 'ARTIST') ?? '';
+
+      // Reject karaoke/remix/live variants unless the user's own track is
+      // explicitly one of those too.
+      final isJunk = _kuwoJunkVariant.hasMatch(name);
+      final wantsJunk = _kuwoJunkVariant.hasMatch(song.name);
+      if (isJunk && !wantsJunk) continue;
+
+      final gotTitle = _normalizeForMatch(name);
+      final gotArtist = _normalizeForMatch(artistName);
+
+      var score = 0.0;
+      if (gotTitle == wantTitle) {
+        score += 3.0;
+      } else if (gotTitle.contains(wantTitle) ||
+          wantTitle.contains(gotTitle)) {
+        score += 1.5;
+      } else {
+        continue; // Title unrelated — not this song at all.
+      }
+      // The artist must line up too. Title-only matching lets junk through
+      // that happens to contain the title as a substring (measured: a
+      // "see you again（劳大的小曲）2倍 4倍 8倍" upload scored just high
+      // enough on title+duration alone). Requiring artist agreement is what
+      // separates the real recording from someone's re-upload. Compared per
+      // performer, since a collaboration is "A / B" on our side but often
+      // just one of the names on Kuwo's.
+      if (wantArtistNames.isNotEmpty) {
+        if (gotArtist.isEmpty) continue;
+        final anyArtistMatches = wantArtistNames.any(
+          (name) => gotArtist.contains(name) || name.contains(gotArtist),
+        );
+        if (!anyArtistMatches) continue;
+        score += gotArtist == wantArtist ? 2.0 : 1.0;
+      }
+      // Duration is the strongest signal that this is the same recording,
+      // and it's a hard gate rather than a penalty: a title can match
+      // exactly while the audio is a 165s truncated cut of a 269s song
+      // (measured on Kuwo's results for "晴天"). The 25s tolerance is wide
+      // enough for the same recording listed with a different fade-out or
+      // master (Kuwo had this track at 230s against Netease's 210s) while
+      // still rejecting truncated cuts and extended live versions.
+      final gotSeconds = double.tryParse(_kuwoField(chunk, 'DURATION') ?? '');
+      if (wantSeconds != null) {
+        if (gotSeconds == null || gotSeconds <= 0) continue;
+        final delta = (gotSeconds - wantSeconds).abs();
+        if (delta > 25) continue;
+        score += delta <= 5 ? 2.5 : 1.0;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestRid = rid;
+      }
+    }
+    // Require more than a bare fuzzy title hit, so a wrong song is left
+    // unplayed rather than silently substituted.
+    return bestScore >= 2.5 ? bestRid : null;
+  }
+
+  String? _kuwoField(String chunk, String field) {
+    final match = RegExp("'$field':'([^']*)'").firstMatch(chunk);
+    return match?.group(1);
+  }
+
+  String _normalizeForMatch(String value) {
+    return value
+        .replaceAll('&nbsp;', ' ')
+        .toLowerCase()
+        // Drop bracketed qualifiers like "(feat. X)" / "(Live)" so they
+        // don't defeat an otherwise exact title match.
+        .replaceAll(RegExp(r'[（(\[][^）)\]]*[）)\]]'), ' ')
+        .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), '')
+        .trim();
   }
 
   // NeteaseCloudMusicApi-compatible servers embed this in the signed
