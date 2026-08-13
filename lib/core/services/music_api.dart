@@ -45,7 +45,7 @@ class ResolvedAudioSource {
 /// the method that is actually likely to work, instead of re-running the
 /// full direct -> compatible -> legacy -> Alger cascade from scratch every
 /// single time.
-enum ResolveMethod { direct, compatible, compatibleLegacy, mirror, alger }
+enum ResolveMethod { direct, compatible, compatibleLegacy, mirror, kuwo, alger }
 
 class _RememberedMethod {
   _RememberedMethod(this.method) : rememberedAt = DateTime.now();
@@ -76,6 +76,18 @@ class MusicApi {
   // resolver process, no Node, works identically on mobile and desktop.
   // This is what makes VIP playback work out of the box in a packaged app.
   static const _mirrorApiBase = 'https://music-api.gdstudio.xyz/api.php';
+
+  // Kuwo's own public endpoints, used as a fully independent second unlock
+  // path. The mirror above is a single third-party service: when GD Studio
+  // went down (confirmed: sustained 503s across every one of its domains),
+  // every VIP/region-locked track became unplayable at once. These two
+  // endpoints share no infrastructure with it, so an outage on one side no
+  // longer takes out unlocking entirely.
+  //
+  // Flow: search by "title artist" -> take the best match's rid -> ask
+  // antiserver to convert that rid into a playable mp3 URL.
+  static const _kuwoSearchBase = 'https://search.kuwo.cn/r.s';
+  static const _kuwoConvertBase = 'https://antiserver.kuwo.cn/anti.s';
   static const _requestTimeout = Duration(seconds: 8);
   static const _probeTimeout = Duration(seconds: 4);
   static const _resolverTimeout = Duration(seconds: 45);
@@ -272,20 +284,25 @@ class MusicApi {
     // confirmed live against an actual VIP-only track — so it stays in
     // the order for paid tracks; we just skip the one hop that's
     // guaranteed to fail.
-    // `mirror` (pure-Dart GD Studio unlock) is the out-of-the-box path for
-    // VIP/region-locked tracks — no resolver process required. `alger`
-    // stays last as an optional power-user extra: if the user happens to
-    // run tools/alger_resolver it adds more independent sources, but
-    // nothing depends on it anymore.
+    // `mirror` (pure-Dart GD Studio unlock) and `kuwo` (pure-Dart, Kuwo's
+    // own endpoints) are both out-of-the-box paths for VIP/region-locked
+    // tracks — no resolver process required. They're deliberately two
+    // independent services: GD Studio going down once took out unlocking
+    // entirely, so `kuwo` exists purely so a single provider's outage can't
+    // do that again. `alger` stays last as an optional power-user extra: if
+    // the user happens to run tools/alger_resolver it adds more sources,
+    // but nothing depends on it.
     final fullOrder = _usesDirectNetease
         ? const [
             ResolveMethod.direct,
             ResolveMethod.mirror,
+            ResolveMethod.kuwo,
             ResolveMethod.alger,
           ]
         : const [
             ResolveMethod.compatible,
             ResolveMethod.mirror,
+            ResolveMethod.kuwo,
             ResolveMethod.alger,
           ];
     final defaultOrder = song.requiresPaidAccess
@@ -364,6 +381,11 @@ class MusicApi {
         return url == null
             ? null
             : ResolvedAudioSource(url: url, source: 'gdstudio', method: method);
+      case ResolveMethod.kuwo:
+        final url = await _resolveWithKuwo(song);
+        return url == null
+            ? null
+            : ResolvedAudioSource(url: url, source: 'kuwo', method: method);
       case ResolveMethod.alger:
         final resolved = await _resolveWithAlgerFallback(
           song,
@@ -443,6 +465,71 @@ class MusicApi {
     } on Object catch (error) {
       developer.log(
         'Mirror (GD Studio) resolve failed for ${song.id}: $error',
+        name: 'MuseHub.MusicApi',
+      );
+      return null;
+    }
+  }
+
+  /// Pure-Dart unlock via Kuwo's own public endpoints — an independent
+  /// second path so one provider's outage can't take out VIP/region-locked
+  /// playback entirely (which is exactly what happened when GD Studio went
+  /// down). Kuwo has no concept of Netease ids, so this matches by title +
+  /// artist: search, take the top hit's rid, convert it to a stream URL.
+  ///
+  /// Because it's a text match rather than an id lookup, it can occasionally
+  /// land on a cover/live/instrumental version of the right song. That's an
+  /// acceptable trade for it being a last-resort fallback: it only runs
+  /// after the id-exact paths have already failed, where the alternative is
+  /// silence.
+  Future<String?> _resolveWithKuwo(Song song) async {
+    final title = song.name.trim();
+    if (title.isEmpty) return null;
+    final artist = song.artistText.trim();
+    final keyword = artist.isEmpty ? title : '$title $artist';
+    try {
+      final searchUri = Uri.parse(_kuwoSearchBase).replace(queryParameters: {
+        'all': keyword,
+        'ft': 'music',
+        'itemnum': '5',
+        'client': 'kt',
+        'pn': '0',
+        'rn': '5',
+        'rformat': 'json',
+        'encoding': 'utf8',
+      });
+      final searchResponse = await _client
+          .get(searchUri, headers: _audioProbeHeaders)
+          .timeout(const Duration(seconds: 10));
+      if (searchResponse.statusCode < 200 || searchResponse.statusCode >= 300) {
+        return null;
+      }
+      // Kuwo replies with single-quoted pseudo-JSON that jsonDecode can't
+      // parse, so pull the first result's id out directly.
+      final match = RegExp(r"'DC_TARGETID'\s*:\s*'(\d+)'")
+          .firstMatch(searchResponse.body);
+      final rid = match?.group(1);
+      if (rid == null || rid.isEmpty) return null;
+
+      final convertUri = Uri.parse(_kuwoConvertBase).replace(queryParameters: {
+        'type': 'convert_url',
+        'format': 'mp3',
+        'response': 'url',
+        'rid': 'MUSIC_$rid',
+      });
+      final urlResponse = await _client
+          .get(convertUri, headers: _audioProbeHeaders)
+          .timeout(const Duration(seconds: 10));
+      if (urlResponse.statusCode < 200 || urlResponse.statusCode >= 300) {
+        return null;
+      }
+      // This endpoint returns the bare URL as plain text.
+      final url = urlResponse.body.trim();
+      if (!url.startsWith('http')) return null;
+      return _validatedAudioUrl(url, durationMs: song.durationMs);
+    } on Object catch (error) {
+      developer.log(
+        'Kuwo resolve failed for ${song.id}: $error',
         name: 'MuseHub.MusicApi',
       );
       return null;
