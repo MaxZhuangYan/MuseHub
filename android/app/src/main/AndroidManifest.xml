@@ -4,10 +4,15 @@
     <!-- Needed for mDNS/Bonjour discovery of a LAN-hosted Alger resolver. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <!-- Background media playback (just_audio_background / audio_service). -->
+    <!-- Background media playback (audio_service). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Required from Android 13 (API 33) on: without this the media
+         notification — and therefore the whole lock screen / control centre
+         transport UI — silently never appears. We target SDK 36, so this
+         applies to every reasonably recent device. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="musehub"
         android:name="${applicationName}"
