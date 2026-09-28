@@ -129,6 +129,29 @@ class AppStrings {
   String get openDownloadFolder => _t('openDownloadFolder');
   String get openDownloadFolderUnavailable =>
       _t('openDownloadFolderUnavailable');
+  String get batchDownload => _t('batchDownload');
+  String get selectSongs => _t('selectSongs');
+  String get selectAll => _t('selectAll');
+  String get clearSelection => _t('clearSelection');
+  String get cancel => _t('cancel');
+  String get alreadyDownloaded => _t('alreadyDownloaded');
+  String get nothingToDownload => _t('nothingToDownload');
+  String downloadSelected(int count) =>
+      _t('downloadSelected').replaceAll('{count}', '$count');
+  String selectedCount(int count) =>
+      _t('selectedCount').replaceAll('{count}', '$count');
+  String downloadingProgress(int done, int total) => _t('downloadingProgress')
+      .replaceAll('{done}', '$done')
+      .replaceAll('{total}', '$total');
+  String batchDownloadDone(int ok) =>
+      _t('batchDownloadDone').replaceAll('{ok}', '$ok');
+  String batchDownloadPartial(int ok, int failed) =>
+      _t('batchDownloadPartial')
+          .replaceAll('{ok}', '$ok')
+          .replaceAll('{failed}', '$failed');
+  String get downloadLocation => _t('downloadLocation');
+  String get copyPath => _t('copyPath');
+  String get pathCopied => _t('pathCopied');
   String get appearance => _t('appearance');
   String get musicServices => _t('musicServices');
   String get noResults => _t('noResults');
@@ -260,6 +283,21 @@ const _en = {
   'openDownloadFolder': 'Open download folder',
   'openDownloadFolderUnavailable':
       'Opening the download folder is not available on this platform.',
+  'batchDownload': 'Download several',
+  'selectSongs': 'Select songs',
+  'selectAll': 'Select all',
+  'clearSelection': 'Clear',
+  'cancel': 'Cancel',
+  'alreadyDownloaded': 'Already downloaded',
+  'nothingToDownload': 'Every song here is already downloaded.',
+  'downloadSelected': 'Download {count}',
+  'selectedCount': '{count} selected',
+  'downloadingProgress': 'Downloading {done} / {total}',
+  'batchDownloadDone': 'Downloaded {ok} songs',
+  'batchDownloadPartial': 'Downloaded {ok}, {failed} failed',
+  'downloadLocation': 'Download location',
+  'copyPath': 'Copy path',
+  'pathCopied': 'Path copied',
   'hundredMillionPlays': '{count}B plays',
   'tenThousandPlays': '{count}W plays',
   'plainPlays': '{count} plays',
@@ -360,6 +398,21 @@ const _zhHans = {
   'downloadFailed': '下载失败',
   'openDownloadFolder': '打开下载目录',
   'openDownloadFolderUnavailable': '当前平台不支持直接打开下载目录。',
+  'batchDownload': '批量下载',
+  'selectSongs': '选择歌曲',
+  'selectAll': '全选',
+  'clearSelection': '取消选择',
+  'cancel': '取消',
+  'alreadyDownloaded': '已下载',
+  'nothingToDownload': '这里的歌曲都已经下载过了。',
+  'downloadSelected': '下载 {count} 首',
+  'selectedCount': '已选 {count} 首',
+  'downloadingProgress': '正在下载 {done} / {total}',
+  'batchDownloadDone': '已下载 {ok} 首',
+  'batchDownloadPartial': '成功 {ok} 首，失败 {failed} 首',
+  'downloadLocation': '下载位置',
+  'copyPath': '复制路径',
+  'pathCopied': '路径已复制',
   'hundredMillionPlays': '{count} 亿次播放',
   'tenThousandPlays': '{count} 万次播放',
   'plainPlays': '{count} 次播放',
@@ -460,6 +513,21 @@ const _zhHant = {
   'downloadFailed': '下載失敗',
   'openDownloadFolder': '開啟下載目錄',
   'openDownloadFolderUnavailable': '目前平台不支援直接開啟下載目錄。',
+  'batchDownload': '批次下載',
+  'selectSongs': '選擇歌曲',
+  'selectAll': '全選',
+  'clearSelection': '取消選擇',
+  'cancel': '取消',
+  'alreadyDownloaded': '已下載',
+  'nothingToDownload': '這裡的歌曲都已經下載過了。',
+  'downloadSelected': '下載 {count} 首',
+  'selectedCount': '已選 {count} 首',
+  'downloadingProgress': '正在下載 {done} / {total}',
+  'batchDownloadDone': '已下載 {ok} 首',
+  'batchDownloadPartial': '成功 {ok} 首，失敗 {failed} 首',
+  'downloadLocation': '下載位置',
+  'copyPath': '複製路徑',
+  'pathCopied': '路徑已複製',
   'hundredMillionPlays': '{count} 億次播放',
   'tenThousandPlays': '{count} 萬次播放',
   'plainPlays': '{count} 次播放',

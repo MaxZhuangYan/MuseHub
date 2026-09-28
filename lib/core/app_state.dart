@@ -9,6 +9,15 @@ import 'services/download_service.dart';
 import 'services/musehub_server_api.dart';
 import 'services/music_api.dart';
 
+/// Outcome of a multi-song download, so the UI can say what actually
+/// happened rather than just "done".
+class BatchDownloadResult {
+  const BatchDownloadResult({required this.succeeded, required this.failed});
+
+  final int succeeded;
+  final int failed;
+}
+
 class AppState extends ChangeNotifier {
   AppState(this.api, this.serverApi, this.downloadService);
 
@@ -243,10 +252,51 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Downloads several songs one after another, skipping ones already saved.
+  /// Runs sequentially on purpose: these are multi-megabyte files from a CDN
+  /// that throttles parallel requests, and a serial queue keeps progress
+  /// meaningful. [onProgress] fires after each song with how many are done,
+  /// and one failure never aborts the rest — the result reports both counts
+  /// so the caller can tell the user what actually happened.
+  Future<BatchDownloadResult> downloadSongs(
+    List<Song> songs, {
+    void Function(int done, int total)? onProgress,
+  }) async {
+    var succeeded = 0;
+    var failed = 0;
+    final total = songs.length;
+    for (var i = 0; i < total; i++) {
+      final song = songs[i];
+      if (_downloads.containsKey(song.id)) {
+        succeeded++;
+      } else {
+        try {
+          await downloadSong(song);
+          if (_downloads.containsKey(song.id)) {
+            succeeded++;
+          } else {
+            failed++;
+          }
+        } on Object {
+          failed++;
+        }
+      }
+      onProgress?.call(i + 1, total);
+    }
+    return BatchDownloadResult(succeeded: succeeded, failed: failed);
+  }
+
   Future<void> deleteDownload(Song song) async {
     await downloadService.deleteDownload(song.id);
     _downloads.remove(song.id);
     notifyListeners();
+  }
+
+  bool get canOpenDownloadDirectory =>
+      downloadService.canOpenDownloadDirectory;
+
+  Future<String> downloadDirectoryPath() {
+    return downloadService.downloadDirectoryPath();
   }
 
   Future<void> openDownloadDirectory() {

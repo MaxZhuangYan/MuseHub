@@ -15,10 +15,15 @@ class DownloadService {
   Future<String?> localPathForSong(int songId) async => null;
 
   Future<DownloadedSong> downloadSong(Song song) {
-    throw const MusicApiException('Downloads are not available on this platform.');
+    throw const MusicApiException(
+        'Downloads are not available on this platform.');
   }
 
   Future<void> deleteDownload(int songId) async {}
+
+  Future<String> downloadDirectoryPath() async => '';
+
+  bool get canOpenDownloadDirectory => false;
 
   Future<void> openDownloadDirectory() {
     throw const MusicApiException(

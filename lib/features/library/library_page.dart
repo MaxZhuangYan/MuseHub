@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -8,6 +9,7 @@ import '../../core/services/download_service.dart';
 import '../../core/services/music_api.dart';
 import '../../core/widgets/song_tile.dart';
 import '../../l10n/app_strings.dart';
+import '../downloads/batch_download_page.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -71,6 +73,9 @@ class _LibraryPageState extends State<LibraryPage> {
               _SectionHeader(
                 title: strings.favorites,
                 subtitle: strings.savedLocally(favoriteIds.length),
+                trailing: favorites.isEmpty
+                    ? null
+                    : _BatchDownloadButton(songs: favorites),
               ),
               if (state.connectionState == ConnectionState.waiting &&
                   !state.hasData)
@@ -164,6 +169,25 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _BatchDownloadButton extends StatelessWidget {
+  const _BatchDownloadButton({required this.songs});
+  final List<Song> songs;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    return IconButton(
+      tooltip: strings.batchDownload,
+      icon: const Icon(Icons.download_for_offline_outlined, size: 20),
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => BatchDownloadPage(songs: songs),
+        ),
+      ),
+    );
+  }
+}
+
 class _OpenDownloadFolderButton extends StatelessWidget {
   const _OpenDownloadFolderButton({required this.appState});
   final AppState appState;
@@ -171,19 +195,68 @@ class _OpenDownloadFolderButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
+    // Android/iOS have no reliable "reveal in file manager" intent, so
+    // offering a button that always throws is worse than useless. There we
+    // show the folder path instead, which is something the user can act on.
+    final canOpen = appState.canOpenDownloadDirectory;
     return IconButton(
-      tooltip: strings.openDownloadFolder,
-      icon: const Icon(Icons.folder_open_rounded, size: 20),
+      tooltip: canOpen ? strings.openDownloadFolder : strings.downloadLocation,
+      icon: Icon(
+        canOpen ? Icons.folder_open_rounded : Icons.info_outline_rounded,
+        size: 20,
+      ),
       onPressed: () async {
-        final messenger = ScaffoldMessenger.of(context);
-        try {
-          await appState.openDownloadDirectory();
-        } on Object {
-          messenger.showSnackBar(
-            SnackBar(content: Text(strings.openDownloadFolderUnavailable)),
-          );
+        if (canOpen) {
+          try {
+            await appState.openDownloadDirectory();
+            return;
+          } on Object {
+            // Fall through to showing the path — more actionable than an
+            // error telling the user something didn't work.
+          }
         }
+        final path = await appState.downloadDirectoryPath();
+        if (!context.mounted) return;
+        await _showPathDialog(context, path, strings);
       },
+    );
+  }
+
+  Future<void> _showPathDialog(
+    BuildContext context,
+    String path,
+    AppStrings strings,
+  ) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          strings.downloadLocation,
+          style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: SelectableText(
+          path,
+          style: GoogleFonts.hankenGrotesk(fontSize: 12, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(strings.cancel),
+          ),
+          TextButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(dialogContext);
+              await Clipboard.setData(ClipboardData(text: path));
+              if (!dialogContext.mounted) return;
+              Navigator.of(dialogContext).pop();
+              messenger.showSnackBar(
+                SnackBar(content: Text(strings.pathCopied)),
+              );
+            },
+            child: Text(strings.copyPath),
+          ),
+        ],
+      ),
     );
   }
 }

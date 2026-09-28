@@ -8,6 +8,7 @@ import '../../core/models/song.dart';
 import '../../core/services/music_api.dart';
 import '../../core/widgets/song_tile.dart';
 import '../../l10n/app_strings.dart';
+import '../downloads/batch_download_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -171,6 +172,37 @@ class _SearchPageState extends State<SearchPage> {
               _error!,
               style: GoogleFonts.hankenGrotesk(
                   fontSize: 13, color: scheme.error),
+            ),
+          ),
+
+        // ── Results actions ──
+        if (hasResults)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 12, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => BatchDownloadPage(songs: _songs),
+                    ),
+                  ),
+                  icon: Icon(
+                    Icons.download_for_offline_outlined,
+                    size: 18,
+                    color: scheme.primaryContainer,
+                  ),
+                  label: Text(
+                    strings.batchDownload,
+                    style: GoogleFonts.hankenGrotesk(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.primaryContainer,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
