@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,10 +34,12 @@ class AppState extends ChangeNotifier {
   static const _localeKey = 'locale';
   static const _favoritesKey = 'favorites';
   static const _favoriteTrackIdsKey = 'favoriteTrackIds';
+  static const _downloadDirKey = 'downloadDirectory';
   final Set<int> _favoriteIds = {};
   final Map<int, String> _favoriteTrackIdsBySongId = {};
   final Map<int, DownloadedSong> _downloads = {};
   final Set<int> _downloadingIds = {};
+  String _downloadDirectoryPath = '';
   String _apiBaseUrl = MusicApi.defaultBaseUrl;
   String _resolverBaseUrl = _defaultResolverBaseUrl;
   String _serverBaseUrl = _defaultServerBaseUrl;
@@ -85,12 +89,16 @@ class AppState extends ChangeNotifier {
       ..addAll(_decodeFavoriteTrackIds(
           prefs.getStringList(_favoriteTrackIdsKey) ?? const []));
     await _restoreSession();
+    await _restoreDownloadDirectory(prefs);
     // Sweep out corrupt/too-small cached audio and interrupted-download
     // residue before indexing, so bad files never make it into the library
     // or get preferred for playback.
     await _cleanUpDownloadCache();
     await refreshDownloads();
     notifyListeners();
+    // Renaming/tagging songs from older versions rewrites files and fetches
+    // covers, so it runs after the UI is up instead of delaying launch.
+    unawaited(_migrateLegacyDownloads());
   }
 
   Future<void> _cleanUpDownloadCache() async {
@@ -98,6 +106,38 @@ class AppState extends ChangeNotifier {
       await downloadService.cleanUpCache();
     } on Object {
       // Best-effort; must never block startup.
+    }
+  }
+
+  Future<void> _migrateLegacyDownloads() async {
+    try {
+      final migrated = await downloadService.migrateLegacyDownloads();
+      if (migrated > 0) await refreshDownloads();
+    } on Object {
+      // Old downloads keep playing from where they are.
+    }
+  }
+
+  Future<void> _restoreDownloadDirectory(SharedPreferences prefs) async {
+    final saved = prefs.getString(_downloadDirKey);
+    try {
+      final restored = await downloadService.restoreCustomDirectory(saved);
+      if (saved != null && restored == null) {
+        // The folder is gone or no longer accessible; forget it rather than
+        // failing every download against it.
+        await prefs.remove(_downloadDirKey);
+      }
+    } on Object {
+      // Default folder it is.
+    }
+    await _refreshDownloadDirectoryPath();
+  }
+
+  Future<void> _refreshDownloadDirectoryPath() async {
+    try {
+      _downloadDirectoryPath = await downloadService.downloadDirectoryPath();
+    } on Object {
+      _downloadDirectoryPath = '';
     }
   }
 
@@ -295,8 +335,49 @@ class AppState extends ChangeNotifier {
   bool get canOpenDownloadDirectory =>
       downloadService.canOpenDownloadDirectory;
 
+  bool get canChooseDownloadDirectory =>
+      downloadService.canChooseDownloadDirectory;
+
+  /// True when the user picked a folder instead of the default.
+  bool get usesCustomDownloadDirectory =>
+      downloadService.customDirectory != null;
+
+  /// Current audio folder, cached for display in Settings.
+  String get downloadDirectoryPathSync => _downloadDirectoryPath;
+
   Future<String> downloadDirectoryPath() {
     return downloadService.downloadDirectoryPath();
+  }
+
+  /// Lets the user choose a new download folder: the system folder picker
+  /// on macOS, the shared Music/MuseHub folder on Android. Returns the new
+  /// path, or null if cancelled / permission refused (nothing changes then).
+  Future<String?> chooseDownloadDirectory() async {
+    final path = defaultTargetPlatform == TargetPlatform.android
+        ? await downloadService.useSharedMusicDirectory()
+        : await downloadService.pickCustomDirectory();
+    if (path == null) return null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_downloadDirKey, path);
+    await _refreshDownloadDirectoryPath();
+    notifyListeners();
+    return path;
+  }
+
+  Future<void> resetDownloadDirectory() async {
+    await downloadService.useDefaultDirectory();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_downloadDirKey);
+    await _refreshDownloadDirectoryPath();
+    notifyListeners();
+  }
+
+  /// Moves already-downloaded songs into the current folder. Returns how
+  /// many were moved.
+  Future<int> moveDownloadsToCurrentDirectory() async {
+    final moved = await downloadService.moveDownloadsToCurrentDirectory();
+    await refreshDownloads();
+    return moved;
   }
 
   Future<void> openDownloadDirectory() {

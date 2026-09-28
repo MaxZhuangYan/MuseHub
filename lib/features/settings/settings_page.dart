@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -188,6 +189,37 @@ class _SettingsPageState extends State<SettingsPage> {
 
         const SizedBox(height: 20),
 
+        // ── Downloads section ──
+        if (appState.canChooseDownloadDirectory) ...[
+          _SectionLabel(strings.downloads),
+          _SettingsCard(
+            children: [
+              _SettingsRow(
+                icon: Icons.folder_rounded,
+                title: strings.downloadLocation,
+                subtitle: appState.downloadDirectoryPathSync,
+                onTap: () =>
+                    _changeDownloadLocation(context, appState, strings),
+              ),
+              if (appState.usesCustomDownloadDirectory) ...[
+                _Divider(),
+                _SettingsRow(
+                  icon: Icons.restore_rounded,
+                  title: strings.resetDownloadLocation,
+                  subtitle: strings.resetDownloadLocationBody,
+                  onTap: () => _applyDownloadLocation(
+                    context,
+                    appState,
+                    strings,
+                    reset: true,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
+
         // ── About section ──
         _SectionLabel(strings.about),
         _SettingsCard(
@@ -210,6 +242,121 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
       ],
+    );
+  }
+
+  /// Android offers two fixed places (any other folder would need the
+  /// Storage Access Framework, where plain file I/O no longer works); macOS
+  /// opens the system folder picker.
+  Future<void> _changeDownloadLocation(
+    BuildContext context,
+    AppState appState,
+    AppStrings strings,
+  ) async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      await _applyDownloadLocation(context, appState, strings, reset: false);
+      return;
+    }
+    final scheme = Theme.of(context).colorScheme;
+    final usesShared = appState.usesCustomDownloadDirectory;
+    final check = Icon(Icons.check_rounded, color: scheme.primaryContainer);
+    final choice = await showModalBottomSheet<_DownloadLocationChoice>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: scheme.surfaceContainer,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.phone_android_rounded),
+              title: Text(strings.appStorageOption),
+              subtitle: Text(strings.appStorageOptionBody),
+              trailing: usesShared ? null : check,
+              onTap: () => Navigator.of(sheetContext)
+                  .pop(_DownloadLocationChoice.appStorage),
+            ),
+            ListTile(
+              leading: const Icon(Icons.library_music_rounded),
+              title: Text(strings.sharedMusicOption),
+              subtitle: Text(strings.sharedMusicOptionBody),
+              trailing: usesShared ? check : null,
+              onTap: () => Navigator.of(sheetContext)
+                  .pop(_DownloadLocationChoice.sharedMusic),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    await _applyDownloadLocation(
+      context,
+      appState,
+      strings,
+      reset: choice == _DownloadLocationChoice.appStorage,
+    );
+  }
+
+  Future<void> _applyDownloadLocation(
+    BuildContext context,
+    AppState appState,
+    AppStrings strings, {
+    required bool reset,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final before = appState.downloadDirectoryPathSync;
+    if (reset) {
+      await appState.resetDownloadDirectory();
+    } else {
+      final path = await appState.chooseDownloadDirectory();
+      if (path == null) {
+        // macOS: the user cancelled the picker — nothing to say. Android:
+        // the only way to get null is a refused storage permission.
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          messenger.showSnackBar(
+            SnackBar(content: Text(strings.storagePermissionDenied)),
+          );
+        }
+        return;
+      }
+    }
+    if (!context.mounted || appState.downloadDirectoryPathSync == before) {
+      return;
+    }
+
+    final count = appState.downloads.length;
+    final move = count == 0
+        ? false
+        : await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text(strings.moveDownloadsTitle),
+              content: Text(strings.moveDownloadsBody(count)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text(strings.keepInPlace),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: Text(strings.move),
+                ),
+              ],
+            ),
+          );
+    if (move != true) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(strings.downloadLocationChanged)),
+      );
+      return;
+    }
+    final moved = await appState.moveDownloadsToCurrentDirectory();
+    messenger.showSnackBar(
+      SnackBar(content: Text(strings.movedCount(moved))),
     );
   }
 
@@ -379,6 +526,8 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 // ── Sub-widgets ───────────────────────────────────────────────────────────────
+
+enum _DownloadLocationChoice { appStorage, sharedMusic }
 
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);

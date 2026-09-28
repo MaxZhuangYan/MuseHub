@@ -8,9 +8,19 @@ class DownloadService {
     dynamic client,
   });
 
-  Future<List<DownloadedSong>> listDownloads() async => const [];
+  String? get customDirectory => null;
 
-  Future<int> cleanUpCache() async => 0;
+  bool get canChooseDownloadDirectory => false;
+
+  Future<String?> restoreCustomDirectory(String? savedPath) async => null;
+
+  Future<String?> pickCustomDirectory() async => null;
+
+  Future<String?> useSharedMusicDirectory() async => null;
+
+  Future<void> useDefaultDirectory() async {}
+
+  Future<List<DownloadedSong>> listDownloads() async => const [];
 
   Future<String?> localPathForSong(int songId) async => null;
 
@@ -20,6 +30,12 @@ class DownloadService {
   }
 
   Future<void> deleteDownload(int songId) async {}
+
+  Future<int> cleanUpCache() async => 0;
+
+  Future<int> migrateLegacyDownloads() async => 0;
+
+  Future<int> moveDownloadsToCurrentDirectory() async => 0;
 
   Future<String> downloadDirectoryPath() async => '';
 

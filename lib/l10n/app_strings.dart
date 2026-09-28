@@ -152,6 +152,21 @@ class AppStrings {
   String get downloadLocation => _t('downloadLocation');
   String get copyPath => _t('copyPath');
   String get pathCopied => _t('pathCopied');
+  String get resetDownloadLocation => _t('resetDownloadLocation');
+  String get resetDownloadLocationBody => _t('resetDownloadLocationBody');
+  String get appStorageOption => _t('appStorageOption');
+  String get appStorageOptionBody => _t('appStorageOptionBody');
+  String get sharedMusicOption => _t('sharedMusicOption');
+  String get sharedMusicOptionBody => _t('sharedMusicOptionBody');
+  String get storagePermissionDenied => _t('storagePermissionDenied');
+  String get downloadLocationChanged => _t('downloadLocationChanged');
+  String get moveDownloadsTitle => _t('moveDownloadsTitle');
+  String moveDownloadsBody(int count) =>
+      _t('moveDownloadsBody').replaceAll('{count}', '$count');
+  String get keepInPlace => _t('keepInPlace');
+  String get move => _t('move');
+  String movedCount(int count) =>
+      _t('movedCount').replaceAll('{count}', '$count');
   String get appearance => _t('appearance');
   String get musicServices => _t('musicServices');
   String get noResults => _t('noResults');
@@ -298,6 +313,21 @@ const _en = {
   'downloadLocation': 'Download location',
   'copyPath': 'Copy path',
   'pathCopied': 'Path copied',
+  'resetDownloadLocation': 'Use default location',
+  'resetDownloadLocationBody': 'Save new downloads to the app folder again',
+  'appStorageOption': 'App folder (default)',
+  'appStorageOptionBody': 'Private to MuseHub, reachable from a file manager',
+  'sharedMusicOption': 'Music folder (Music/MuseHub)',
+  'sharedMusicOptionBody': 'Other music apps on this phone can play them too',
+  'storagePermissionDenied':
+      'Storage permission was not granted, so the location did not change.',
+  'downloadLocationChanged': 'New downloads will be saved here',
+  'moveDownloadsTitle': 'Move downloaded songs?',
+  'moveDownloadsBody':
+      'Move the {count} songs you have already downloaded to the new location? If you keep them where they are, they still play — they just stay in the old folder.',
+  'keepInPlace': 'Keep in place',
+  'move': 'Move',
+  'movedCount': 'Moved {count} songs',
   'hundredMillionPlays': '{count}B plays',
   'tenThousandPlays': '{count}W plays',
   'plainPlays': '{count} plays',
@@ -413,6 +443,20 @@ const _zhHans = {
   'downloadLocation': '下载位置',
   'copyPath': '复制路径',
   'pathCopied': '路径已复制',
+  'resetDownloadLocation': '恢复默认位置',
+  'resetDownloadLocationBody': '新下载的歌曲重新保存到 App 目录',
+  'appStorageOption': 'App 专属目录（默认）',
+  'appStorageOptionBody': '仅 MuseHub 使用，文件管理器可以找到',
+  'sharedMusicOption': '系统音乐文件夹（Music/MuseHub）',
+  'sharedMusicOptionBody': '手机上的其他音乐 App 也能直接播放',
+  'storagePermissionDenied': '没有获得存储权限，保存位置未更改。',
+  'downloadLocationChanged': '之后下载的歌曲会保存到这里',
+  'moveDownloadsTitle': '移动已下载的歌曲？',
+  'moveDownloadsBody':
+      '要把已下载的 {count} 首歌曲移动到新位置吗？不移动也能正常播放，只是会留在原来的文件夹里。',
+  'keepInPlace': '保留原处',
+  'move': '移动',
+  'movedCount': '已移动 {count} 首',
   'hundredMillionPlays': '{count} 亿次播放',
   'tenThousandPlays': '{count} 万次播放',
   'plainPlays': '{count} 次播放',
@@ -528,6 +572,20 @@ const _zhHant = {
   'downloadLocation': '下載位置',
   'copyPath': '複製路徑',
   'pathCopied': '路徑已複製',
+  'resetDownloadLocation': '恢復預設位置',
+  'resetDownloadLocationBody': '新下載的歌曲重新儲存到 App 目錄',
+  'appStorageOption': 'App 專屬目錄（預設）',
+  'appStorageOptionBody': '僅 MuseHub 使用，檔案管理器可以找到',
+  'sharedMusicOption': '系統音樂資料夾（Music/MuseHub）',
+  'sharedMusicOptionBody': '手機上的其他音樂 App 也能直接播放',
+  'storagePermissionDenied': '沒有取得儲存權限，儲存位置未變更。',
+  'downloadLocationChanged': '之後下載的歌曲會儲存到這裡',
+  'moveDownloadsTitle': '移動已下載的歌曲？',
+  'moveDownloadsBody':
+      '要把已下載的 {count} 首歌曲移動到新位置嗎？不移動也能正常播放，只是會留在原來的資料夾裡。',
+  'keepInPlace': '保留原處',
+  'move': '移動',
+  'movedCount': '已移動 {count} 首',
   'hundredMillionPlays': '{count} 億次播放',
   'tenThousandPlays': '{count} 萬次播放',
   'plainPlays': '{count} 次播放',

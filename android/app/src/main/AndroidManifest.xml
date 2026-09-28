@@ -13,11 +13,17 @@
          transport UI — silently never appears. We target SDK 36, so this
          applies to every reasonably recent device. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Saving downloads into the shared Music folder on Android 10 and
+         below. Android 11+ needs no permission for an app's own audio files. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
     <application
         android:label="musehub"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
